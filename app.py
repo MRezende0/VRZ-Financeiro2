@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import requests
+import os
+from dotenv import load_dotenv
 
 # Configuração inicial da página
 st.set_page_config(
@@ -10,10 +12,12 @@ st.set_page_config(
     layout="wide",
 )
 
-# Credenciais do sistema
+# Carrega as variáveis do .env
+load_dotenv()
+
 USER_CREDENTIALS = {
-    "contato@vrzengenharia.com.br": "123",
-    "20242025": "123",
+    os.getenv("USER_EMAIL"): os.getenv("USER_PASSWORD"),
+    os.getenv("ADMIN_EMAIL"): os.getenv("ADMIN_PASSWORD"),
 }
 
 # Estilo personalizado
