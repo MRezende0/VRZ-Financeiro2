@@ -157,6 +157,23 @@ def dashboard():
     else:
         st.info("Nenhuma transação registrada ainda.")
 
+# Definir o caminho do arquivo CSV
+CSV_FILE = "dados/receita.csv"
+
+# Função para carregar transações do CSV
+def carregar_transacoes():
+    if os.path.exists(CSV_FILE):
+        return pd.read_csv(CSV_FILE)
+    return pd.DataFrame(columns=["Data", "Descrição", "Categoria", "Valor", "Tipo"])
+
+# Atualizar session_state com os dados do CSV ao iniciar
+if "transactions" not in st.session_state:
+    st.session_state["transactions"] = carregar_transacoes()
+
+# Função para salvar transações no CSV
+def salvar_transacoes(transactions):
+    transactions.to_csv(CSV_FILE, index=False)
+
 # Tela do sistema (após login)
 def main_app():
     st.sidebar.image("imagens/VRZ-LOGO-44.png")
@@ -169,6 +186,7 @@ def main_app():
     if menu_option == "Dashboard":
         dashboard()
 
+    # Registrar Transação
     elif menu_option == "Registrar Transação":
         st.title("💾 Registrar Transação")
 
@@ -188,10 +206,14 @@ def main_app():
                 [[data, descricao, categoria, valor, tipo]],
                 columns=["Data", "Descrição", "Categoria", "Valor", "Tipo"]
             )
+
+            # Atualizar session_state e salvar no CSV
             st.session_state["transactions"] = pd.concat(
                 [st.session_state["transactions"], nova_transacao],
                 ignore_index=True
             )
+            salvar_transacoes(st.session_state["transactions"])
+
             st.success("Transação registrada com sucesso!")
 
     elif menu_option == "Relatórios":
