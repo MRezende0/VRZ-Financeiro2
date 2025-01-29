@@ -5,14 +5,14 @@ import requests
 
 # Configuração inicial da página
 st.set_page_config(
-    page_title="ERP de Gestão Financeira",
+    page_title="VRZ Gestão Financeira",
     page_icon="💸",
     layout="wide",
 )
 
 # Credenciais do sistema
 USER_CREDENTIALS = {
-    "vrz.com.br": "123",
+    "contato@vrzengenharia.com.br": "123",
     "20242025": "123",
 }
 
@@ -61,7 +61,7 @@ if "transactions" not in st.session_state:
 
 # Tela de Login
 def login_screen():
-    st.title("🔐 Login no ERP de Gestão Financeira")
+    st.title("🔐 Login - VRZ Gestão Financeira")
     st.markdown("Por favor, insira suas credenciais para acessar o sistema.")
 
     # Formulário de login
@@ -74,6 +74,7 @@ def login_screen():
         if email in USER_CREDENTIALS and USER_CREDENTIALS[email] == password:
             st.success("Login realizado com sucesso! Redirecionando...")
             st.session_state["logged_in"] = True
+            
         else:
             st.error("Credenciais inválidas. Verifique seu e-mail e senha.")
 
