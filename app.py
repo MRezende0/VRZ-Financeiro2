@@ -5,24 +5,14 @@ import requests
 import os
 from dotenv import load_dotenv
 
+########################################## CONFIGURAÇÃO ##########################################
+
 # Configuração inicial da página
 st.set_page_config(
     page_title="VRZ Gestão Financeira",
     page_icon="💸",
     layout="wide",
 )
-
-# Carrega credenciais dos Secrets
-USER_CREDENTIALS = {
-    st.secrets["USER_EMAIL"]: st.secrets["USER_PASSWORD"],
-    st.secrets["ADMIN_EMAIL"]: st.secrets["ADMIN_PASSWORD"],
-}
-
-# Função de login
-def login(email, senha):
-    if email in USER_CREDENTIALS and USER_CREDENTIALS[email] == senha:
-        return True
-    return False
 
 # Estilo personalizado
 def add_custom_css():
@@ -59,13 +49,43 @@ def add_custom_css():
         </style>
     """, unsafe_allow_html=True)
 
+########################################## CREDENCIAIS ##########################################
+
+# Carrega credenciais dos Secrets
+USER_CREDENTIALS = {
+    st.secrets["USER_EMAIL"]: st.secrets["USER_PASSWORD"],
+    st.secrets["ADMIN_EMAIL"]: st.secrets["ADMIN_PASSWORD"],
+}
+
+########################################## DADOS ##########################################
+
+# Caminho do arquivo CSV para armazenar as transações
+df_receitas = "dados/receitas.csv"
+df_despesas = "dados/despesas.csv"
+df_projetos = "dados/projetos.csv"
+df_clientes = "dados/clientes.csv"
+df_fornecedores = "dados/fornecedores.csv"
+
+########################################## LOGIN ##########################################
+
+# Função de login
+def login(email, senha):
+    if email in USER_CREDENTIALS and USER_CREDENTIALS[email] == senha:
+        return True
+    return False
+
+########################################## INICIALIZAÇÃO ##########################################
+
 # Inicialização de dados
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
+
 if "transactions" not in st.session_state:
     st.session_state["transactions"] = pd.DataFrame(
         columns=["Data", "Descrição", "Categoria", "Valor", "Tipo"]
     )
+
+########################################## TELA LOGIN ##########################################
 
 # Tela de Login
 def login_screen():
@@ -80,43 +100,140 @@ def login_screen():
 
     if submit:
         if email in USER_CREDENTIALS and USER_CREDENTIALS[email] == password:
-            st.success("Login realizado com sucesso! Redirecionando...")
             st.session_state["logged_in"] = True
-            
+            st.rerun()  # Atualiza a página para mostrar o conteúdo após o login
         else:
             st.error("Credenciais inválidas. Verifique seu e-mail e senha.")
 
-# Função para buscar informações do CNPJ
-def buscar_cnpj(cnpj):
-    url = f"https://receitaws.com.br/v1/cnpj/{cnpj}"
-    try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            return response.json()
-        else:
-            st.error("Não foi possível buscar informações do CNPJ. Verifique o número e tente novamente.")
-            return None
-    except Exception as e:
-        st.error(f"Erro ao buscar CNPJ: {e}")
-        return None
+########################################## TRANSAÇÃO ##########################################
 
-# Tela de consulta ao CNPJ
-def consultar_cnpj():
-    st.title("🔍 Busca de Informações pelo CNPJ")
+# Função para carregar transações de receitas e despesas
+def carregar_transacoes():
+    if os.path.exists(df_receitas) and os.path.exists(df_despesas):
+        df_receitas = pd.read_csv(df_receitas)
+        df_despesas = pd.read_csv(df_despesas)
+        # Garantir que as colunas estão alinhadas ou padronizadas
+        return pd.concat([df_receitas, df_despesas], ignore_index=True)
+    else:
+        # Caso não exista, retorna DataFrame vazio com as colunas necessárias
+        return pd.DataFrame(columns=["Data", "Descrição", "Categoria", "Valor", "Tipo"])
 
-    cnpj_input = st.text_input("Digite o CNPJ:", placeholder="Ex.: 00000000000191")
-    if st.button("Buscar"):
-        if cnpj_input:
-            cnpj_data = buscar_cnpj(cnpj_input)
-            if cnpj_data:
-                st.write(f"**Nome da Empresa:** {cnpj_data.get('nome')}")
-                st.write(f"**Situação:** {cnpj_data.get('situacao')}")
-                st.write(f"**UF:** {cnpj_data.get('uf')}")
-                st.write(f"**Atividade Principal:** {cnpj_data.get('atividade_principal')[0]['text']}")
-            else:
-                st.warning("Nenhum dado encontrado para o CNPJ informado.")
-        else:
-            st.warning("Por favor, insira um CNPJ válido.")
+# Função para salvar transações de receitas e despesas
+def salvar_transacoes(receitas, despesas):
+    if not receitas.empty:
+        receitas.to_csv(df_receitas, index=False)
+    if not despesas.empty:
+        despesas.to_csv(df_despesas, index=False)
+
+# Inicialização de dados
+if "transactions" not in st.session_state:
+    st.session_state["transactions"] = carregar_transacoes()
+
+# Separação de receitas e despesas (assumindo que a coluna 'Tipo' define se é Receita ou Despesa)
+df_receitas = st.session_state["transactions"][st.session_state["transactions"]['Tipo'] == 'Receita']
+df_despesas = st.session_state["transactions"][st.session_state["transactions"]['Tipo'] == 'Despesa']
+
+# Função para adicionar uma nova transação
+def adicionar_transacao(data, descricao, categoria, valor, tipo):
+    nova_transacao = pd.DataFrame({
+        "Data": [data],
+        "Descrição": [descricao],
+        "Categoria": [categoria],
+        "Valor": [valor],
+        "Tipo": [tipo]
+    })
+    
+    if tipo == "Receita":
+        df_receitas = pd.concat([df_receitas, nova_transacao], ignore_index=True)
+    elif tipo == "Despesa":
+        df_despesas = pd.concat([df_despesas, nova_transacao], ignore_index=True)
+
+    # Salvar novamente as transações
+    salvar_transacoes(df_receitas, df_despesas)
+
+########################################## REGISTRAR TRANSAÇÃO ##########################################
+
+# Função para registrar transação
+def registrar_transacao(data, descricao, categoria, valor, tipo, detalhes_adicionais):
+    nova_transacao = pd.DataFrame([[data, descricao, categoria, valor, tipo, detalhes_adicionais]], 
+                                  columns=["Data", "Descrição", "Categoria", "Valor", "Tipo", "Detalhes"])
+    
+    # Adiciona a nova transação ao estado e salva no CSV
+    st.session_state["transactions"] = pd.concat(
+        [st.session_state["transactions"], nova_transacao], ignore_index=True
+    )
+    salvar_transacoes(st.session_state["transactions"])
+
+# Função para salvar as transações (ajustada)
+def salvar_transacoes(transacoes):
+    # Implemente a lógica de salvar as transações no arquivo CSV
+    pass
+
+########################################## TELA - REGISTRAR TRANSAÇÃO ##########################################
+
+def registrar_transacao_tela():
+    st.title("💾 Registrar Transação")
+    
+    # Seleção do tipo de transação
+    tipo = st.radio("Tipo de Transação", ["Receita", "Despesa"], key="tipo_transacao")
+    
+    # Atualiza as opções de categoria de acordo com o tipo selecionado
+    if tipo == "Receita":
+        data = st.date_input("Data")
+        descricao = st.text_input("Descrição")
+        categoria = st.selectbox("Categoria", ["Salário", "Investimentos", "Freelance", "Outros"])
+        detalhes_adicionais = st.text_input("Fonte da Receita", "Ex: Nome da empresa, cliente, etc.")
+        valor = st.number_input("Valor", min_value=0.0, step=0.01, format="%.2f")
+    else:
+        data = st.date_input("Data")
+        descricao = st.text_input("Descrição")
+        categoria = st.selectbox("Categoria", ["Alimentação", "Moradia", "Transporte", "Lazer", "Outros"])
+        detalhes_adicionais = st.text_input("Método de Pagamento", "Ex: Cartão, Dinheiro, Transferência")
+        valor = st.number_input("Valor", min_value=0.0, step=0.01, format="%.2f")
+
+    if st.button("Salvar Transação"):
+        registrar_transacao(data, descricao, categoria, valor, tipo, detalhes_adicionais)
+        st.success("Transação registrada com sucesso!")
+
+# Inicializando o estado da sessão, se necessário
+if "transactions" not in st.session_state:
+    st.session_state["transactions"] = pd.DataFrame(columns=["Data", "Descrição", "Categoria", "Valor", "Tipo", "Detalhes"])
+
+########################################## CNPJ ##########################################
+
+# # Função para buscar informações do CNPJ
+# def buscar_cnpj(cnpj):
+#     url = f"https://receitaws.com.br/v1/cnpj/{cnpj}"
+#     try:
+#         response = requests.get(url)
+#         if response.status_code == 200:
+#             return response.json()
+#         else:
+#             st.error("Não foi possível buscar informações do CNPJ. Verifique o número e tente novamente.")
+#             return None
+#     except Exception as e:
+#         st.error(f"Erro ao buscar CNPJ: {e}")
+#         return None
+
+# # Tela de consulta ao CNPJ
+# def consultar_cnpj():
+#     st.title("🔍 Busca de Informações pelo CNPJ")
+
+#     cnpj_input = st.text_input("Digite o CNPJ:", placeholder="Ex.: 00000000000191")
+#     if st.button("Buscar"):
+#         if cnpj_input:
+#             cnpj_data = buscar_cnpj(cnpj_input)
+#             if cnpj_data:
+#                 st.write(f"**Nome da Empresa:** {cnpj_data.get('nome')}")
+#                 st.write(f"**Situação:** {cnpj_data.get('situacao')}")
+#                 st.write(f"**UF:** {cnpj_data.get('uf')}")
+#                 st.write(f"**Atividade Principal:** {cnpj_data.get('atividade_principal')[0]['text']}")
+#             else:
+#                 st.warning("Nenhum dado encontrado para o CNPJ informado.")
+#         else:
+#             st.warning("Por favor, insira um CNPJ válido.")
+
+########################################## SALDO ##########################################
 
 # Função para calcular o saldo
 def calcular_saldo(transactions):
@@ -125,13 +242,23 @@ def calcular_saldo(transactions):
     saldo = receitas - despesas
     return receitas, despesas, saldo
 
-# Dashboard
+########################################## DASHBOARD ##########################################
+
 def dashboard():
     st.title("📊 Dashboard Financeiro")
     
     # Dados e cálculos
     transactions = st.session_state["transactions"]
-    receitas, despesas, saldo = calcular_saldo(transactions)
+
+    if transactions.empty:
+        st.info("Nenhuma transação registrada ainda.")
+        return
+    
+    receitas = transactions[transactions["Tipo"] == "Receita"]["Valor"].sum()
+    despesas = transactions[transactions["Tipo"] == "Despesa"]["Valor"].sum()
+    saldo = receitas - despesas
+
+###################### CARDS ######################
 
     # Layout de Cards
     col1, col2, col3 = st.columns(3)
@@ -141,6 +268,8 @@ def dashboard():
         st.markdown('<div class="card"><h3>Despesas</h3><p style="color: #e74c3c;">R$ {:,.2f}</p></div>'.format(despesas), unsafe_allow_html=True)
     with col3:
         st.markdown('<div class="card"><h3>Saldo</h3><p>R$ {:,.2f}</p></div>'.format(saldo), unsafe_allow_html=True)
+
+###################### GRÁFICO ######################
 
     # Gráfico
     if not transactions.empty:
@@ -157,22 +286,32 @@ def dashboard():
     else:
         st.info("Nenhuma transação registrada ainda.")
 
-# Definir o caminho do arquivo CSV
-CSV_FILE = "dados/receita.csv"
+########################################## RELATÓRIO ##########################################
 
-# Função para carregar transações do CSV
-def carregar_transacoes():
-    if os.path.exists(CSV_FILE):
-        return pd.read_csv(CSV_FILE)
-    return pd.DataFrame(columns=["Data", "Descrição", "Categoria", "Valor", "Tipo"])
+def relatorio():
+    st.title("📈 Relatórios Financeiros")
 
-# Atualizar session_state com os dados do CSV ao iniciar
-if "transactions" not in st.session_state:
-    st.session_state["transactions"] = carregar_transacoes()
+    transactions = st.session_state["transactions"]
 
-# Função para salvar transações no CSV
-def salvar_transacoes(transactions):
-    transactions.to_csv(CSV_FILE, index=False)
+    if not transactions.empty:
+        # Tabela de transações
+        st.dataframe(transactions)
+
+        # Gráficos
+        fig_pie = px.pie(
+            transactions,
+            values="Valor",
+            names="Categoria",
+            title="Distribuição por Categoria",
+            hole=0.5,
+            color_discrete_sequence=px.colors.sequential.RdBu
+        )
+        st.plotly_chart(fig_pie, use_container_width=True)
+
+    else:
+        st.info("Nenhuma transação registrada ainda.")
+
+########################################## PÁGINA PRINCIPAL ##########################################
 
 # Tela do sistema (após login)
 def main_app():
@@ -186,69 +325,26 @@ def main_app():
     if menu_option == "Dashboard":
         dashboard()
 
-    # Registrar Transação
     elif menu_option == "Registrar Transação":
-        st.title("💾 Registrar Transação")
-
-        with st.form("form_transaction"):
-            data = st.date_input("Data")
-            descricao = st.text_input("Descrição")
-            categoria = st.selectbox(
-                "Categoria",
-                ["Alimentação", "Moradia", "Transporte", "Lazer", "Salário", "Outros"]
-            )
-            valor = st.number_input("Valor", min_value=0.0, step=0.01, format="%.2f")
-            tipo = st.radio("Tipo", ["Receita", "Despesa"])
-            submit = st.form_submit_button("Salvar Transação")
-
-        if submit:
-            nova_transacao = pd.DataFrame(
-                [[data, descricao, categoria, valor, tipo]],
-                columns=["Data", "Descrição", "Categoria", "Valor", "Tipo"]
-            )
-
-            # Atualizar session_state e salvar no CSV
-            st.session_state["transactions"] = pd.concat(
-                [st.session_state["transactions"], nova_transacao],
-                ignore_index=True
-            )
-            salvar_transacoes(st.session_state["transactions"])
-
-            st.success("Transação registrada com sucesso!")
+        registrar_transacao_tela()
 
     elif menu_option == "Relatórios":
-        st.title("📈 Relatórios Financeiros")
-
-        transactions = st.session_state["transactions"]
-
-        if not transactions.empty:
-            # Tabela de transações
-            st.dataframe(transactions)
-
-            # Gráficos
-            fig_pie = px.pie(
-                transactions,
-                values="Valor",
-                names="Categoria",
-                title="Distribuição por Categoria",
-                hole=0.5,
-                color_discrete_sequence=px.colors.sequential.RdBu
-            )
-            st.plotly_chart(fig_pie, use_container_width=True)
-
-        else:
-            st.info("Nenhuma transação registrada ainda.")
+        relatorio()
 
     elif menu_option == "Consultar CNPJ":
         consultar_cnpj()
 
     elif menu_option == "Sair":
         st.session_state["logged_in"] = False
-        st.success("Você saiu do sistema. Por favor, faça login novamente.")
+        st.success("Você saiu do sistema.")
+
+########################################## ACESSO AO SISTEMA ##########################################
 
 # Controle de acesso ao sistema
 if __name__ == "__main__":
-    add_custom_css()
+    if "logged_in" not in st.session_state:
+        st.session_state["logged_in"] = False
+
     if st.session_state["logged_in"]:
         main_app()
     else:
