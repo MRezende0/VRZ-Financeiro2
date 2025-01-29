@@ -37,7 +37,7 @@ def add_custom_css():
                 font-weight: bold;
             }
             .card {
-                background-color: #ffffff;
+                background-color: #f8f9fa;
                 padding: 20px;
                 border-radius: 10px;
                 box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
