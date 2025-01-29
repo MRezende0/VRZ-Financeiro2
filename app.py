@@ -12,13 +12,17 @@ st.set_page_config(
     layout="wide",
 )
 
-# Carrega as variáveis do .env
-load_dotenv()
-
+# Carrega credenciais dos Secrets
 USER_CREDENTIALS = {
-    os.getenv("USER_EMAIL"): os.getenv("USER_PASSWORD"),
-    os.getenv("ADMIN_EMAIL"): os.getenv("ADMIN_PASSWORD"),
+    st.secrets["USER_EMAIL"]: st.secrets["USER_PASSWORD"],
+    st.secrets["ADMIN_EMAIL"]: st.secrets["ADMIN_PASSWORD"],
 }
+
+# Função de login
+def login(email, senha):
+    if email in USER_CREDENTIALS and USER_CREDENTIALS[email] == senha:
+        return True
+    return False
 
 # Estilo personalizado
 def add_custom_css():
