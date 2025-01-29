@@ -12,7 +12,7 @@ st.set_page_config(
 
 # Credenciais do sistema
 USER_CREDENTIALS = {
-    "marketing@odoscontabilidade.com.br": "123",
+    "vrz.com.br": "123",
     "20242025": "123",
 }
 
