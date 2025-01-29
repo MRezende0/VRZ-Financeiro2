@@ -110,8 +110,8 @@ def login_screen():
 # Função para carregar transações de receitas e despesas
 def carregar_transacoes():
     if os.path.exists(df_receitas) and os.path.exists(df_despesas):
-        df_receitas = pd.read_csv(df_receitas)
-        df_despesas = pd.read_csv(df_despesas)
+        # df_receitas = pd.read_csv(df_receitas)
+        # df_despesas = pd.read_csv(df_despesas)
         # Garantir que as colunas estão alinhadas ou padronizadas
         return pd.concat([df_receitas, df_despesas], ignore_index=True)
     else:
@@ -179,7 +179,8 @@ def registrar_transacao_tela():
     
     # Atualiza as opções de categoria de acordo com o tipo selecionado
     if tipo == "Receita":
-        data = st.date_input("Data")
+        dataContrato = st.date_input("Data")
+        projeto = st.selectbox(df_projetos["Clientes"])
         descricao = st.text_input("Descrição")
         categoria = st.selectbox("Categoria", ["Salário", "Investimentos", "Freelance", "Outros"])
         detalhes_adicionais = st.text_input("Fonte da Receita", "Ex: Nome da empresa, cliente, etc.")
