@@ -60,11 +60,11 @@ USER_CREDENTIALS = {
 ########################################## DADOS ##########################################
 
 # Caminho do arquivo CSV para armazenar as transações
-df_receitas = "dados/receitas.csv"
-df_despesas = "dados/despesas.csv"
-df_projetos = "dados/projetos.csv"
-df_clientes = "dados/clientes.csv"
-df_fornecedores = "dados/fornecedores.csv"
+df_receitas = pd.read_csv("dados/receitas.csv")
+df_despesas = pd.read_csv("dados/despesas.csv")
+df_projetos = pd.read_csv("dados/projetos.csv")
+df_clientes = pd.read_csv("dados/clientes.csv")
+df_fornecedores = pd.read_csv("dados/fornecedores.csv")
 
 ########################################## LOGIN ##########################################
 
