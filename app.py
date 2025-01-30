@@ -333,7 +333,7 @@ def main_app():
         relatorio()
 
     elif menu_option == "Consultar CNPJ":
-        consultar_cnpj()
+        print("")
 
     elif menu_option == "Sair":
         st.session_state["logged_in"] = False
