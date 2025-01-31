@@ -63,6 +63,8 @@ USER_CREDENTIALS = {
 RECEITAS_PATH = "dados/receitas.csv"
 DESPESAS_PATH = "dados/despesas.csv"
 PROJETOS_PATH = "dados/projetos.csv"
+CATEGORIAS_RECEITAS_PATH = "dados/categorias_receita.csv"
+FORNECEDOR_DESPESAS_PATH = "dados/fornecedor_despesa.csv"
 
 # Função para carregar dados
 def carregar_dados(caminho, colunas):
@@ -72,9 +74,26 @@ def carregar_dados(caminho, colunas):
         return pd.DataFrame(columns=colunas)
 
 # Carrega os dados iniciais
-df_receitas = carregar_dados(RECEITAS_PATH, ["DataRecebimento", "Projeto", "Categoria", "ValorTotal", "FormaPagamento", "NF"])
-df_despesas = carregar_dados(DESPESAS_PATH, ["DataPagamento", "Descrição", "Categoria", "ValorTotal", "FormaPagamento", "Responsável", "Fornecedor", "Projeto", "NF"])
-df_projetos = carregar_dados(PROJETOS_PATH, ["Projeto", "Cliente", "Localizacao", "Placa", "Post", "DataInicio", "DataFinal", "Contrato", "Status", "Briefing", "Arquiteto", "Tipo", "Pacote", "m2", "Parcelas", "ValorTotal", "ResponsávelElétrico", "ResponsávelHidráulico", "ResponsávelModelagem", "ResponsávelDetalhamento"])
+df_receitas = carregar_dados(RECEITAS_PATH, ["DataRecebimento", "Descrição", "Projeto", "Categoria", "ValorTotal", "FormaPagamento", "NF"])
+df_despesas = carregar_dados(DESPESAS_PATH, ["DataPagamento", "Descrição", "Categoria", "ValorTotal", "Parcelas", "FormaPagamento", "Responsável", "Fornecedor", "Projeto", "NF"])
+df_projetos = carregar_dados(PROJETOS_PATH, ["Projeto", "Cliente", "Localizacao", "Placa", "Post", "DataInicio", "DataFinal", "Contrato", "Status", "Briefing", "Arquiteto", "Tipo", "Pacote", "m2", "Parcelas", "ValorTotal", "ResponsávelElétrico", "ResponsávelHidráulico", "ResponsávelModelagem", "ResponsávelDetalhamento"]).sort_values("Projeto")
+
+# Carrega as categorias de receitas e despesas
+if os.path.exists(CATEGORIAS_RECEITAS_PATH):
+    df_categorias_receitas = pd.read_csv(CATEGORIAS_RECEITAS_PATH)
+else:
+    df_categorias_receitas = pd.DataFrame({"Categoria": ["Pró-Labore", "Investimentos", "Freelance", "Outros"]})  # Categorias padrão
+    df_categorias_receitas.to_csv(CATEGORIAS_RECEITAS_PATH, index=False)
+
+if os.path.exists(FORNECEDOR_DESPESAS_PATH):
+    df_fornecedor_despesas = pd.read_csv(FORNECEDOR_DESPESAS_PATH).sort_values("Fornecedor")
+else:
+    df_fornecedor_despesas = pd.DataFrame({"Fornecedor": ["Outros"]})  # Categorias padrão
+    df_fornecedor_despesas.to_csv(FORNECEDOR_DESPESAS_PATH, index=False)
+
+# Função para salvar categorias
+def salvar_categorias(df, caminho):
+    df.to_csv(caminho, index=False)
 
 ########################################## LOGIN ##########################################
 
@@ -111,13 +130,17 @@ def salvar_dados(df, caminho):
 
 # Tela de Registrar Receita
 def registrar_receita():
-    global df_receitas  # Declara df_receitas como global
+    global df_receitas, df_categorias_receitas
     st.title("💸 Registrar Receita")
 
     with st.form("form_receita"):
         DataRecebimento = st.date_input("Data de Recebimento")
-        Projeto = st.selectbox("Projeto", df_projetos["Projeto"].unique())
-        Categoria = st.selectbox("Categoria", ["Pró-Labore", "Investimentos", "Freelance", "Outros"])
+        Descrição = st.text_input("Descrição")
+
+        projetos = ["-"] + list(df_projetos["Projeto"].unique()) if not df_projetos.empty else ["-"]
+        Projeto = st.selectbox("Projeto", projetos)
+
+        Categoria = st.selectbox("Categoria", df_categorias_receitas["Categoria"].unique())
         ValorTotal = st.number_input("Valor", min_value=0.0, step=1.0, format="%.2f")
         FormaPagamento = st.selectbox("Forma de Pagamento", ["Pix", "TED", "Dinheiro"])
         NF = st.selectbox("Nota Fiscal", ["Sim", "Não"])
@@ -126,6 +149,7 @@ def registrar_receita():
     if submit:
         nova_receita = pd.DataFrame({
             "DataRecebimento": [DataRecebimento],
+            "Descrição": [Descrição],
             "Projeto": [Projeto],
             "Categoria": [Categoria],
             "ValorTotal": [ValorTotal],
@@ -133,22 +157,34 @@ def registrar_receita():
             "NF": [NF]
         })
         df_receitas = pd.concat([df_receitas, nova_receita], ignore_index=True)
-        salvar_dados(df_receitas, RECEITAS_PATH)
+        df_receitas.to_csv(RECEITAS_PATH, index=False)
         st.success("Receita registrada com sucesso!")
+
+    # Campo para adicionar nova categoria de receita
+    nova_categoria = st.text_input("Nova Categoria")
+    if st.button("Adicionar"):
+        if nova_categoria and nova_categoria not in df_categorias_receitas["Categoria"].values:
+            nova_categoria_df = pd.DataFrame({"Categoria": [nova_categoria]})
+            df_categorias_receitas = pd.concat([df_categorias_receitas, nova_categoria_df], ignore_index=True)
+            salvar_categorias(df_categorias_receitas, CATEGORIAS_RECEITAS_PATH)
+            st.success(f"Categoria '{nova_categoria}' adicionada com sucesso!")
+        else:
+            st.warning("Categoria já existe ou está vazia.")
 
 # Tela de Registrar Despesa
 def registrar_despesa():
-    global df_despesas  # Declara df_despesas como global
+    global df_despesas, df_fornecedor_despesas
     st.title("💸 Registrar Despesa")
 
     with st.form("form_despesa"):
         DataPagamento = st.date_input("Data de Pagamento")
         Descricao = st.text_input("Descrição")
-        Categoria = st.selectbox("Categoria", ["Alimentação", "Moradia", "Transporte", "Lazer", "Outros"])
+        Categoria = st.selectbox("Categoria", ["Pró-Labore", "Aluguel", "Alimentação", "Outro"])
         ValorTotal = st.number_input("Valor", min_value=0.0, step=1.0, format="%.2f")
+        Parcelas = st.number_input("Parcelas", min_value=1, step=1)
         FormaPagamento = st.selectbox("Forma de Pagamento", ["Cartão de Crédito", "Pix", "TED", "Dinheiro"])
         Responsável = st.selectbox("Responsável", ["Bruno", "Victor"])
-        Fornecedor = st.text_input("Fornecedor")
+        Fornecedor = st.selectbox("Fornecedor", df_fornecedor_despesas["Fornecedor"].unique())
         Projeto = st.selectbox("Projeto", df_projetos["Projeto"].unique())
         NF = st.selectbox("Nota Fiscal", ["Sim", "Não"])
         submit = st.form_submit_button("Salvar Despesa")
@@ -159,6 +195,7 @@ def registrar_despesa():
             "Descrição": [Descricao],
             "Categoria": [Categoria],
             "ValorTotal": [ValorTotal],
+            "Parcelas": [Parcelas],
             "FormaPagamento": [FormaPagamento],
             "Responsável": [Responsável],
             "Fornecedor": [Fornecedor],
@@ -166,8 +203,19 @@ def registrar_despesa():
             "NF": [NF]
         })
         df_despesas = pd.concat([df_despesas, nova_despesa], ignore_index=True)
-        salvar_dados(df_despesas, DESPESAS_PATH)
+        df_despesas.to_csv(DESPESAS_PATH, index=False)
         st.success("Despesa registrada com sucesso!")
+
+    # Campo para adicionar nova categoria de despesa
+    novo_fornecedor = st.text_input("Novo Fornecedor")
+    if st.button("Adicionar"):
+        if novo_fornecedor and novo_fornecedor not in df_fornecedor_despesas["Fornecedor"].values:
+            novo_fornecedor_df = pd.DataFrame({"Fornecedor": [novo_fornecedor]})
+            df_fornecedor_despesas = pd.concat([df_fornecedor_despesas, novo_fornecedor_df], ignore_index=True)
+            salvar_categorias(df_fornecedor_despesas, FORNECEDOR_DESPESAS_PATH)
+            st.success(f"Fornecedor '{novo_fornecedor}' adicionado com sucesso!")
+        else:
+            st.warning("Fornecedor já existe ou está vazio.")
 
 ########################################## PROJETOS ##########################################
 
@@ -180,10 +228,10 @@ def registrar_projeto():
         Projeto = st.text_input("ID Projeto")
         Cliente = st.text_input("Nome do cliente")
         Localizacao = st.text_input("Localização")
-        Placa = st.selectbox("Placa", ["Sim", "Não"])
-        Post = st.selectbox("Post", ["Sim", "Não"])
+        Placa = st.selectbox("Já possui placa na obra?", ["Sim", "Não"])
+        Post = st.selectbox("Já foi feito o post do projeto?", ["Sim", "Não"])
         DataInicio = st.date_input("Data de Início")
-        DataFinal = st.date_input("Data Final")
+        DataFinal = st.date_input("Data de Conclusão Prevista")
         Contrato = st.selectbox("Contrato", ["Sim", "Não"])
         Status = st.selectbox("Status", ["Concluído", "Em Andamento", "A fazer", "Impedido"])
         Briefing = st.selectbox("Briefing", ["Sim", "Não"])
