@@ -306,21 +306,134 @@ def dashboard():
             '<div class="card"><h3>Saldo</h3><p style="color: {};">R$ {}</p></div>'.format(cor_saldo, saldo_formatado),
             unsafe_allow_html=True
         )
+
+    # Cores fixas para receitas e despesas
+    cor_receitas = "#4caf50"  # Verde
+    cor_despesas = "#e74c3c"  # Vermelho
+
+    # Gráfico 1: Quantidade de receitas por mês/ano
+    if not df_receitas.empty:
+        df_receitas["DataRecebimento"] = pd.to_datetime(df_receitas["DataRecebimento"])
+        df_receitas["MesAno"] = df_receitas["DataRecebimento"].dt.to_period("M").astype(str)
+        receitas_por_mes_ano = df_receitas.groupby("MesAno")["ValorTotal"].sum().reset_index()
+        receitas_por_mes_ano["MesAno"] = pd.to_datetime(receitas_por_mes_ano["MesAno"])
         
-    # Gráfico
-    if not df_receitas.empty or not df_despesas.empty:
-        df_transacoes = pd.concat([df_receitas.assign(Tipo="Receita"), df_despesas.assign(Tipo="Despesa")])
-        fig = px.bar(
-            df_transacoes,
+        fig_receitas_mes_ano = px.bar(
+            receitas_por_mes_ano,
+            x="MesAno",
+            y="ValorTotal",
+            title="Receitas por Mês/Ano",
+            labels={"ValorTotal": "Total de Receitas", "MesAno": "Mês/Ano"},
+            color_discrete_sequence=[cor_receitas]  # Verde para receitas
+        )
+        
+        fig_receitas_mes_ano.update_xaxes(
+            tickformat="%b/%Y",
+            dtick="M1"
+        )
+        
+        st.plotly_chart(fig_receitas_mes_ano, use_container_width=True)
+
+    # Gráfico 2: Quantidade de despesas por mês/ano
+    if not df_despesas.empty:
+        df_despesas["DataPagamento"] = pd.to_datetime(df_despesas["DataPagamento"])
+        df_despesas["MesAno"] = df_despesas["DataPagamento"].dt.to_period("M").astype(str)
+        despesas_por_mes_ano = df_despesas.groupby("MesAno")["ValorTotal"].sum().reset_index()
+        despesas_por_mes_ano["MesAno"] = pd.to_datetime(despesas_por_mes_ano["MesAno"])
+        
+        fig_despesas_mes_ano = px.bar(
+            despesas_por_mes_ano,
+            x="MesAno",
+            y="ValorTotal",
+            title="Despesas por Mês/Ano",
+            labels={"ValorTotal": "Total de Despesas", "MesAno": "Mês/Ano"},
+            color_discrete_sequence=[cor_despesas]  # Vermelho para despesas
+        )
+        
+        fig_despesas_mes_ano.update_xaxes(
+            tickformat="%b/%Y",
+            dtick="M1"
+        )
+        
+        st.plotly_chart(fig_despesas_mes_ano, use_container_width=True)
+
+    # Gráfico 3: Receitas por categoria
+    if not df_receitas.empty:
+        receitas_por_categoria = df_receitas.groupby("Categoria")["ValorTotal"].sum().reset_index()
+        fig_receitas_categoria = px.bar(
+            receitas_por_categoria,
             x="Categoria",
             y="ValorTotal",
-            color="Tipo",
-            title="Receitas e Despesas por Categoria",
-            barmode="group"
+            title="Receitas por Categoria",
+            color_discrete_sequence=[cor_receitas]  # Verde para receitas
         )
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("Nenhuma transação registrada ainda.")
+        st.plotly_chart(fig_receitas_categoria, use_container_width=True)
+
+    # Gráfico 4: Despesas por categoria
+    if not df_despesas.empty:
+        despesas_por_categoria = df_despesas.groupby("Categoria")["ValorTotal"].sum().reset_index()
+        fig_despesas_categoria = px.bar(
+            despesas_por_categoria,
+            x="Categoria",
+            y="ValorTotal",
+            title="Despesas por Categoria",
+            color_discrete_sequence=[cor_despesas]  # Vermelho para despesas
+        )
+        st.plotly_chart(fig_despesas_categoria, use_container_width=True)
+
+    # Gráfico 5: Receitas e despesas por projeto
+    if not df_receitas.empty or not df_despesas.empty:
+        receitas_por_projeto = df_receitas.groupby("Projeto")["ValorTotal"].sum().reset_index()
+        despesas_por_projeto = df_despesas.groupby("Projeto")["ValorTotal"].sum().reset_index()
+        fig_projetos = px.bar(
+            pd.concat([receitas_por_projeto.assign(Tipo="Receita"), despesas_por_projeto.assign(Tipo="Despesa")]),
+            x="Projeto",
+            y="ValorTotal",
+            color="Tipo",  # Usa cores diferentes para receitas e despesas
+            title="Receitas e Despesas por Projeto",
+            barmode="group",
+            color_discrete_sequence=[cor_receitas, cor_despesas]  # Verde para receitas, vermelho para despesas
+        )
+        st.plotly_chart(fig_projetos, use_container_width=True)
+
+    # Gráfico 6: Receitas e despesas por método de pagamento
+    if not df_receitas.empty or not df_despesas.empty:
+        receitas_por_metodo = df_receitas.groupby("FormaPagamento")["ValorTotal"].sum().reset_index()
+        despesas_por_metodo = df_despesas.groupby("FormaPagamento")["ValorTotal"].sum().reset_index()
+        fig_metodo_pagamento = px.bar(
+            pd.concat([receitas_por_metodo.assign(Tipo="Receita"), despesas_por_metodo.assign(Tipo="Despesa")]),
+            x="FormaPagamento",
+            y="ValorTotal",
+            color="Tipo",  # Usa cores diferentes para receitas e despesas
+            title="Receitas e Despesas por Método de Pagamento",
+            barmode="group",
+            color_discrete_sequence=[cor_receitas, cor_despesas]  # Verde para receitas, vermelho para despesas
+        )
+        st.plotly_chart(fig_metodo_pagamento, use_container_width=True)
+
+    # Gráfico 7: Despesas por responsável
+    if not df_despesas.empty:
+        despesas_por_responsavel = df_despesas.groupby("Responsável")["ValorTotal"].sum().reset_index()
+        fig_despesas_responsavel = px.bar(
+            despesas_por_responsavel,
+            x="Responsável",
+            y="ValorTotal",
+            title="Despesas por Responsável",
+            color_discrete_sequence=[cor_despesas]  # Vermelho para despesas
+        )
+        st.plotly_chart(fig_despesas_responsavel, use_container_width=True)
+
+    # Gráfico 8: Despesas por fornecedor
+    if not df_despesas.empty:
+        despesas_por_fornecedor = df_despesas.groupby("Fornecedor")["ValorTotal"].sum().reset_index()
+        fig_despesas_fornecedor = px.bar(
+            despesas_por_fornecedor,
+            x="Fornecedor",
+            y="ValorTotal",
+            title="Despesas por Fornecedor",
+            color_discrete_sequence=[cor_despesas]  # Vermelho para despesas
+        )
+        st.plotly_chart(fig_despesas_fornecedor, use_container_width=True)
 
 ########################################## RELATÓRIOS ##########################################
 
