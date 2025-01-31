@@ -101,6 +101,7 @@ def login_screen():
     if submit:
         if email in USER_CREDENTIALS and USER_CREDENTIALS[email] == password:
             st.session_state["logged_in"] = True
+            st.success("Login feito com sucesso!")
             st.rerun()  # Atualiza a página para mostrar o conteúdo após o login
         else:
             st.error("Credenciais inválidas. Verifique seu e-mail e senha.")
@@ -193,7 +194,33 @@ def registrar_transacao_tela():
         valor = st.number_input("Valor", min_value=0.0, step=0.01, format="%.2f")
 
     if st.button("Salvar Transação"):
-        registrar_transacao(data, descricao, categoria, valor, tipo, detalhes_adicionais)
+        # Registrar transação com base no tipo
+        if tipo == "Receita":
+            # Cria ou carrega o arquivo de receitas
+            try:
+                df_receitas = pd.read_csv("receitas.csv")
+            except FileNotFoundError:
+                df_receitas = pd.DataFrame(columns=["Data", "Descrição", "Categoria", "Valor", "Tipo", "Detalhes"])
+            
+            # Adiciona a transação
+            nova_transacao = pd.DataFrame([[dataContrato, descricao, categoria, valor, tipo, detalhes_adicionais]],
+                                          columns=["Data", "Descrição", "Categoria", "Valor", "Tipo", "Detalhes"])
+            df_receitas = pd.concat([df_receitas, nova_transacao], ignore_index=True)
+            df_receitas.to_csv("receitas.csv", index=False)  # Salva no arquivo
+
+        else:
+            # Cria ou carrega o arquivo de despesas
+            try:
+                df_despesas = pd.read_csv("despesas.csv")
+            except FileNotFoundError:
+                df_despesas = pd.DataFrame(columns=["Data", "Descrição", "Categoria", "Valor", "Tipo", "Detalhes"])
+            
+            # Adiciona a transação
+            nova_transacao = pd.DataFrame([[data, descricao, categoria, valor, tipo, detalhes_adicionais]],
+                                          columns=["Data", "Descrição", "Categoria", "Valor", "Tipo", "Detalhes"])
+            df_despesas = pd.concat([df_despesas, nova_transacao], ignore_index=True)
+            df_despesas.to_csv("despesas.csv", index=False)  # Salva no arquivo
+        
         st.success("Transação registrada com sucesso!")
 
 # Inicializando o estado da sessão, se necessário
