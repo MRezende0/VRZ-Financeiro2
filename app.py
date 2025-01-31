@@ -174,7 +174,7 @@ def registrar_receita():
 # Tela de Registrar Despesa
 def registrar_despesa():
     global df_despesas, df_fornecedor_despesas
-    st.title("💸 Registrar Despesa")
+    st.title("📤 Registrar Despesa")
 
     with st.form("form_despesa"):
         DataPagamento = st.date_input("Data de Pagamento")
@@ -276,6 +276,9 @@ def registrar_projeto():
 
 ########################################## DASHBOARD ##########################################
 
+def formatar_br(valor):
+    return f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
 def dashboard():
     st.title("📊 Dashboard Financeiro")
 
@@ -284,15 +287,26 @@ def dashboard():
     despesas = df_despesas["ValorTotal"].sum()
     saldo = receitas - despesas
 
+    # Define a cor do saldo com base no valor
+    cor_saldo = "#e74c3c" if saldo < 0 else "#4caf50"  # Vermelho para negativo, verde para positivo
+
+    # Formata os valores no formato brasileiro (2.000,00)
+    receitas_formatada = formatar_br(receitas)
+    despesas_formatada = formatar_br(despesas)
+    saldo_formatado = formatar_br(saldo)
+
     # Cards
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.markdown('<div class="card"><h3>Receitas</h3><p>R$ {:,.2f}</p></div>'.format(receitas), unsafe_allow_html=True)
+        st.markdown('<div class="card"><h3>Receitas</h3><p>R$ {}</p></div>'.format(receitas_formatada), unsafe_allow_html=True)
     with col2:
-        st.markdown('<div class="card"><h3>Despesas</h3><p style="color: #e74c3c;">R$ {:,.2f}</p></div>'.format(despesas), unsafe_allow_html=True)
+        st.markdown('<div class="card"><h3>Despesas</h3><p style="color: #e74c3c;">R$ {}</p></div>'.format(despesas_formatada), unsafe_allow_html=True)
     with col3:
-        st.markdown('<div class="card"><h3>Saldo</h3><p>R$ {:,.2f}</p></div>'.format(saldo), unsafe_allow_html=True)
-
+        st.markdown(
+            '<div class="card"><h3>Saldo</h3><p style="color: {};">R$ {}</p></div>'.format(cor_saldo, saldo_formatado),
+            unsafe_allow_html=True
+        )
+        
     # Gráfico
     if not df_receitas.empty or not df_despesas.empty:
         df_transacoes = pd.concat([df_receitas.assign(Tipo="Receita"), df_despesas.assign(Tipo="Despesa")])
@@ -326,8 +340,15 @@ def main_app():
     st.sidebar.title("Menu")
     menu_option = st.sidebar.radio(
         "Selecione a funcionalidade:",
-        ("Dashboard", "Registrar Receita", "Registrar Despesa", "Registrar Projeto", "Relatórios", "Sair")
+        ("Dashboard", "Registrar Receita", "Registrar Despesa", "Registrar Projeto", "Relatórios")
     )
+
+    # Botão "Sair" na parte inferior da sidebar
+    st.sidebar.markdown("---")  # Linha separadora
+    if st.sidebar.button("Sair", key="sair"):
+        st.session_state["logged_in"] = False
+        st.success("Você saiu do sistema.")
+        st.rerun()  # Atualiza a página para voltar à tela de login
 
     if menu_option == "Dashboard":
         dashboard()
@@ -339,9 +360,6 @@ def main_app():
         registrar_projeto()
     elif menu_option == "Relatórios":
         relatorios()
-    elif menu_option == "Sair":
-        st.session_state["logged_in"] = False
-        st.success("Você saiu do sistema.")
 
 ########################################## EXECUÇÃO ##########################################
 
