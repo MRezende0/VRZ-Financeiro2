@@ -280,6 +280,28 @@ def formatar_br(valor):
     return f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 def dashboard():
+
+    # # Filtros acima dos gráficos de receitas e despesas
+    # st.markdown("### Filtros para Receitas e Despesas")
+    # col1, col2 = st.columns(2)
+    # with col1:
+    #     categorias_receitas = df_receitas["Categoria"].unique()
+    #     categoria_receita_selecionada = st.multiselect("Categoria de Receitas", categorias_receitas)
+    # with col2:
+    #     categorias_despesas = df_despesas["Categoria"].unique()
+    #     categoria_despesa_selecionada = st.multiselect("Categoria de Despesas", categorias_despesas)
+
+    # # Aplicar filtros aos dados
+    # if categoria_receita_selecionada:
+    #     df_receitas_filtrado = df_receitas[df_receitas["Categoria"].isin(categoria_receita_selecionada)]
+    # else:
+    #     df_receitas_filtrado = df_receitas
+
+    # if categoria_despesa_selecionada:
+    #     df_despesas_filtrado = df_despesas[df_despesas["Categoria"].isin(categoria_despesa_selecionada)]
+    # else:
+    #     df_despesas_filtrado = df_despesas
+
     st.title("📊 Dashboard Financeiro")
 
     # Cálculos
@@ -434,6 +456,158 @@ def dashboard():
             color_discrete_sequence=[cor_despesas]  # Vermelho para despesas
         )
         st.plotly_chart(fig_despesas_fornecedor, use_container_width=True)
+
+    # 1. Quantidade de projetos por localização
+    if not df_projetos.empty:
+        projetos_por_localizacao = df_projetos["Localizacao"].value_counts().reset_index()
+        projetos_por_localizacao.columns = ["Localizacao", "Quantidade"]
+        fig_projetos_localizacao = px.bar(
+            projetos_por_localizacao,
+            x="Localizacao",
+            y="Quantidade",
+            title="Quantidade de Projetos por Localização"
+        )
+        st.plotly_chart(fig_projetos_localizacao, use_container_width=True)
+
+    # 2. Quantidade de projetos com placa e sem placa
+    if not df_projetos.empty:
+        projetos_placa = df_projetos["Placa"].value_counts().reset_index()
+        projetos_placa.columns = ["Placa", "Quantidade"]
+        fig_projetos_placa = px.pie(
+            projetos_placa,
+            names="Placa",
+            values="Quantidade",
+            title="Quantidade de Projetos com Placa e sem Placa"
+        )
+        st.plotly_chart(fig_projetos_placa, use_container_width=True)
+
+    # 3. Quantidade de projetos com post e sem post
+    if not df_projetos.empty:
+        projetos_post = df_projetos["Post"].value_counts().reset_index()
+        projetos_post.columns = ["Post", "Quantidade"]
+        fig_projetos_post = px.pie(
+            projetos_post,
+            names="Post",
+            values="Quantidade",
+            title="Quantidade de Projetos com Post e sem Post"
+        )
+        st.plotly_chart(fig_projetos_post, use_container_width=True)
+
+    # 4. Quantidade de projetos com contrato e sem contrato
+    if not df_projetos.empty:
+        projetos_contrato = df_projetos["Contrato"].value_counts().reset_index()
+        projetos_contrato.columns = ["Contrato", "Quantidade"]
+        fig_projetos_contrato = px.pie(
+            projetos_contrato,
+            names="Contrato",
+            values="Quantidade",
+            title="Quantidade de Projetos com Contrato e sem Contrato"
+        )
+        st.plotly_chart(fig_projetos_contrato, use_container_width=True)
+
+    # 5. Quantidade de projetos pelo status
+    if not df_projetos.empty:
+        projetos_status = df_projetos["Status"].value_counts().reset_index()
+        projetos_status.columns = ["Status", "Quantidade"]
+        fig_projetos_status = px.bar(
+            projetos_status,
+            x="Status",
+            y="Quantidade",
+            title="Quantidade de Projetos por Status"
+        )
+        st.plotly_chart(fig_projetos_status, use_container_width=True)
+
+    # 6. Quantidade de projetos pelo briefing
+    if not df_projetos.empty:
+        projetos_briefing = df_projetos["Briefing"].value_counts().reset_index()
+        projetos_briefing.columns = ["Briefing", "Quantidade"]
+        fig_projetos_briefing = px.pie(
+            projetos_briefing,
+            names="Briefing",
+            values="Quantidade",
+            title="Quantidade de Projetos por Briefing"
+        )
+        st.plotly_chart(fig_projetos_briefing, use_container_width=True)
+
+    # 7. Quantidade de projetos por arquiteto
+    if not df_projetos.empty:
+        projetos_arquiteto = df_projetos["Arquiteto"].value_counts().reset_index()
+        projetos_arquiteto.columns = ["Arquiteto", "Quantidade"]
+        fig_projetos_arquiteto = px.bar(
+            projetos_arquiteto,
+            x="Arquiteto",
+            y="Quantidade",
+            title="Quantidade de Projetos por Arquiteto"
+        )
+        st.plotly_chart(fig_projetos_arquiteto, use_container_width=True)
+
+    # 8. Quantidade de projetos pelo tipo
+    if not df_projetos.empty:
+        projetos_tipo = df_projetos["Tipo"].value_counts().reset_index()
+        projetos_tipo.columns = ["Tipo", "Quantidade"]
+        fig_projetos_tipo = px.bar(
+            projetos_tipo,
+            x="Tipo",
+            y="Quantidade",
+            title="Quantidade de Projetos por Tipo"
+        )
+        st.plotly_chart(fig_projetos_tipo, use_container_width=True)
+
+    # 9. Quantidade de projetos pelo pacote
+    if not df_projetos.empty:
+        projetos_pacote = df_projetos["Pacote"].value_counts().reset_index()
+        projetos_pacote.columns = ["Pacote", "Quantidade"]
+        fig_projetos_pacote = px.bar(
+            projetos_pacote,
+            x="Pacote",
+            y="Quantidade",
+            title="Quantidade de Projetos por Pacote"
+        )
+        st.plotly_chart(fig_projetos_pacote, use_container_width=True)
+
+    # 10. m2 pelo responsável elétrico
+    if not df_projetos.empty:
+        m2_responsavel_eletrico = df_projetos.groupby("ResponsávelElétrico")["m2"].sum().reset_index()
+        fig_m2_eletrico = px.bar(
+            m2_responsavel_eletrico,
+            x="ResponsávelElétrico",
+            y="m2",
+            title="m² por Responsável Elétrico"
+        )
+        st.plotly_chart(fig_m2_eletrico, use_container_width=True)
+
+    # 11. m2 pelo responsável hidráulico
+    if not df_projetos.empty:
+        m2_responsavel_hidraulico = df_projetos.groupby("ResponsávelHidráulico")["m2"].sum().reset_index()
+        fig_m2_hidraulico = px.bar(
+            m2_responsavel_hidraulico,
+            x="ResponsávelHidráulico",
+            y="m2",
+            title="m² por Responsável Hidráulico"
+        )
+        st.plotly_chart(fig_m2_hidraulico, use_container_width=True)
+
+    # 12. m2 pelo responsável de modelagem
+    if not df_projetos.empty:
+        m2_responsavel_modelagem = df_projetos.groupby("ResponsávelModelagem")["m2"].sum().reset_index()
+        fig_m2_modelagem = px.bar(
+            m2_responsavel_modelagem,
+            x="ResponsávelModelagem",
+            y="m2",
+            title="m² por Responsável de Modelagem"
+        )
+        st.plotly_chart(fig_m2_modelagem, use_container_width=True)
+
+    # 13. m2 pelo responsável de detalhamento
+    if not df_projetos.empty:
+        m2_responsavel_detalhamento = df_projetos.groupby("ResponsávelDetalhamento")["m2"].sum().reset_index()
+        fig_m2_detalhamento = px.bar(
+            m2_responsavel_detalhamento,
+            x="ResponsávelDetalhamento",
+            y="m2",
+            title="m² por Responsável de Detalhamento"
+        )
+        st.plotly_chart(fig_m2_detalhamento, use_container_width=True)
 
 ########################################## RELATÓRIOS ##########################################
 
