@@ -1,1 +1,3 @@
-Cliente,Localizacao,Placa,Post,DataInicio,DataFinal,CustoEstimado
+Projeto,Cliente,Localizacao,Placa,Post,DataInicio,DataFinal,Contrato,Status,Briefing,Arquiteto,Tipo,Pacote,m2,Parcelas,ValorTotal,ResponsávelElétrico,ResponsávelHidráulico,ResponsávelModelagem,ResponsávelDetalhamento
+80,Márcio,Guarulhos,Sim,Não,30/01/2025,30/03/2025,Sim,Concluído,Sim,Maurício Rezende,Residencial,Hidráulico,200.0,10,1000.0,João,Flávio,Victor,Bia
+50,João,Marilia,Sim,Sim,2025-01-31,2025-02-03,Sim,Concluído,Sim,Teste,Residencial,Completo,200.0,5,9999.98,Flávio,Flávio,Bia,Bia

@@ -1,9 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import requests
 import os
-from dotenv import load_dotenv
 
 ########################################## CONFIGURAÇÃO ##########################################
 
@@ -49,6 +47,8 @@ def add_custom_css():
         </style>
     """, unsafe_allow_html=True)
 
+add_custom_css()
+
 ########################################## CREDENCIAIS ##########################################
 
 # Carrega credenciais dos Secrets
@@ -59,12 +59,22 @@ USER_CREDENTIALS = {
 
 ########################################## DADOS ##########################################
 
-# Caminho do arquivo CSV para armazenar as transações
-df_receitas = pd.read_csv("dados/receitas.csv")
-df_despesas = pd.read_csv("dados/despesas.csv")
-df_projetos = pd.read_csv("dados/projetos.csv")
-df_clientes = pd.read_csv("dados/clientes.csv")
-df_fornecedores = pd.read_csv("dados/fornecedores.csv")
+# Caminho dos arquivos CSV
+RECEITAS_PATH = "dados/receitas.csv"
+DESPESAS_PATH = "dados/despesas.csv"
+PROJETOS_PATH = "dados/projetos.csv"
+
+# Função para carregar dados
+def carregar_dados(caminho, colunas):
+    if os.path.exists(caminho):
+        return pd.read_csv(caminho)
+    else:
+        return pd.DataFrame(columns=colunas)
+
+# Carrega os dados iniciais
+df_receitas = carregar_dados(RECEITAS_PATH, ["DataRecebimento", "Projeto", "Categoria", "ValorTotal", "FormaPagamento", "NF"])
+df_despesas = carregar_dados(DESPESAS_PATH, ["DataPagamento", "Descrição", "Categoria", "ValorTotal", "FormaPagamento", "Responsável", "Fornecedor", "Projeto", "NF"])
+df_projetos = carregar_dados(PROJETOS_PATH, ["Projeto", "Cliente", "Localizacao", "Placa", "Post", "DataInicio", "DataFinal", "Contrato", "Status", "Briefing", "Arquiteto", "Tipo", "Pacote", "m2", "Parcelas", "ValorTotal", "ResponsávelElétrico", "ResponsávelHidráulico", "ResponsávelModelagem", "ResponsávelDetalhamento"])
 
 ########################################## LOGIN ##########################################
 
@@ -73,19 +83,6 @@ def login(email, senha):
     if email in USER_CREDENTIALS and USER_CREDENTIALS[email] == senha:
         return True
     return False
-
-########################################## INICIALIZAÇÃO ##########################################
-
-# Inicialização de dados
-if "logged_in" not in st.session_state:
-    st.session_state["logged_in"] = False
-
-if "transactions" not in st.session_state:
-    st.session_state["transactions"] = pd.DataFrame(
-        columns=["Data", "Descrição", "Categoria", "Valor", "Tipo"]
-    )
-
-########################################## TELA LOGIN ##########################################
 
 # Tela de Login
 def login_screen():
@@ -99,196 +96,147 @@ def login_screen():
         submit = st.form_submit_button("Entrar")
 
     if submit:
-        if email in USER_CREDENTIALS and USER_CREDENTIALS[email] == password:
-            st.session_state["logged_in"] = True
+        if login(email, password):
             st.success("Login feito com sucesso!")
-            st.rerun()  # Atualiza a página para mostrar o conteúdo após o login
+            st.session_state["logged_in"] = True
+            st.rerun()
         else:
             st.error("Credenciais inválidas. Verifique seu e-mail e senha.")
 
-########################################## TRANSAÇÃO ##########################################
+########################################## TRANSAÇÕES ##########################################
 
-# Função para carregar transações de receitas e despesas
-def carregar_transacoes():
-    if os.path.exists(df_receitas) and os.path.exists(df_despesas):
-        # df_receitas = pd.read_csv(df_receitas)
-        # df_despesas = pd.read_csv(df_despesas)
-        # Garantir que as colunas estão alinhadas ou padronizadas
-        return pd.concat([df_receitas, df_despesas], ignore_index=True)
-    else:
-        # Caso não exista, retorna DataFrame vazio com as colunas necessárias
-        return pd.DataFrame(columns=["Data", "Descrição", "Categoria", "Valor", "Tipo"])
+# Função para salvar dados
+def salvar_dados(df, caminho):
+    df.to_csv(caminho, index=False)
 
-# Função para salvar transações de receitas e despesas
-def salvar_transacoes(receitas, despesas):
-    if not receitas.empty:
-        receitas.to_csv(df_receitas, index=False)
-    if not despesas.empty:
-        despesas.to_csv(df_despesas, index=False)
+# Tela de Registrar Receita
+def registrar_receita():
+    global df_receitas  # Declara df_receitas como global
+    st.title("💸 Registrar Receita")
 
-# Inicialização de dados
-if "transactions" not in st.session_state:
-    st.session_state["transactions"] = carregar_transacoes()
+    with st.form("form_receita"):
+        DataRecebimento = st.date_input("Data de Recebimento")
+        Projeto = st.selectbox("Projeto", df_projetos["Projeto"].unique())
+        Categoria = st.selectbox("Categoria", ["Pró-Labore", "Investimentos", "Freelance", "Outros"])
+        ValorTotal = st.number_input("Valor", min_value=0.0, step=1.0, format="%.2f")
+        FormaPagamento = st.selectbox("Forma de Pagamento", ["Pix", "TED", "Dinheiro"])
+        NF = st.selectbox("Nota Fiscal", ["Sim", "Não"])
+        submit = st.form_submit_button("Salvar Receita")
 
-# Separação de receitas e despesas (assumindo que a coluna 'Tipo' define se é Receita ou Despesa)
-df_receitas = st.session_state["transactions"][st.session_state["transactions"]['Tipo'] == 'Receita']
-df_despesas = st.session_state["transactions"][st.session_state["transactions"]['Tipo'] == 'Despesa']
+    if submit:
+        nova_receita = pd.DataFrame({
+            "DataRecebimento": [DataRecebimento],
+            "Projeto": [Projeto],
+            "Categoria": [Categoria],
+            "ValorTotal": [ValorTotal],
+            "FormaPagamento": [FormaPagamento],
+            "NF": [NF]
+        })
+        df_receitas = pd.concat([df_receitas, nova_receita], ignore_index=True)
+        salvar_dados(df_receitas, RECEITAS_PATH)
+        st.success("Receita registrada com sucesso!")
 
-# Função para adicionar uma nova transação
-def adicionar_transacao(data, descricao, categoria, valor, tipo):
-    nova_transacao = pd.DataFrame({
-        "Data": [data],
-        "Descrição": [descricao],
-        "Categoria": [categoria],
-        "Valor": [valor],
-        "Tipo": [tipo]
-    })
-    
-    if tipo == "Receita":
-        df_receitas = pd.concat([df_receitas, nova_transacao], ignore_index=True)
-    elif tipo == "Despesa":
-        df_despesas = pd.concat([df_despesas, nova_transacao], ignore_index=True)
+# Tela de Registrar Despesa
+def registrar_despesa():
+    global df_despesas  # Declara df_despesas como global
+    st.title("💸 Registrar Despesa")
 
-    # Salvar novamente as transações
-    salvar_transacoes(df_receitas, df_despesas)
+    with st.form("form_despesa"):
+        DataPagamento = st.date_input("Data de Pagamento")
+        Descricao = st.text_input("Descrição")
+        Categoria = st.selectbox("Categoria", ["Alimentação", "Moradia", "Transporte", "Lazer", "Outros"])
+        ValorTotal = st.number_input("Valor", min_value=0.0, step=1.0, format="%.2f")
+        FormaPagamento = st.selectbox("Forma de Pagamento", ["Cartão de Crédito", "Pix", "TED", "Dinheiro"])
+        Responsável = st.selectbox("Responsável", ["Bruno", "Victor"])
+        Fornecedor = st.text_input("Fornecedor")
+        Projeto = st.selectbox("Projeto", df_projetos["Projeto"].unique())
+        NF = st.selectbox("Nota Fiscal", ["Sim", "Não"])
+        submit = st.form_submit_button("Salvar Despesa")
 
-########################################## REGISTRAR TRANSAÇÃO ##########################################
+    if submit:
+        nova_despesa = pd.DataFrame({
+            "DataPagamento": [DataPagamento],
+            "Descrição": [Descricao],
+            "Categoria": [Categoria],
+            "ValorTotal": [ValorTotal],
+            "FormaPagamento": [FormaPagamento],
+            "Responsável": [Responsável],
+            "Fornecedor": [Fornecedor],
+            "Projeto": [Projeto],
+            "NF": [NF]
+        })
+        df_despesas = pd.concat([df_despesas, nova_despesa], ignore_index=True)
+        salvar_dados(df_despesas, DESPESAS_PATH)
+        st.success("Despesa registrada com sucesso!")
 
-# Função para registrar transação
-def registrar_transacao(data, descricao, categoria, valor, tipo, detalhes_adicionais):
-    nova_transacao = pd.DataFrame([[data, descricao, categoria, valor, tipo, detalhes_adicionais]], 
-                                  columns=["Data", "Descrição", "Categoria", "Valor", "Tipo", "Detalhes"])
-    
-    # Adiciona a nova transação ao estado e salva no CSV
-    st.session_state["transactions"] = pd.concat(
-        [st.session_state["transactions"], nova_transacao], ignore_index=True
-    )
-    salvar_transacoes(st.session_state["transactions"])
+########################################## PROJETOS ##########################################
 
-# Função para salvar as transações (ajustada)
-def salvar_transacoes(transacoes):
-    # Implemente a lógica de salvar as transações no arquivo CSV
-    pass
+# Tela de Registrar Projeto
+def registrar_projeto():
+    global df_projetos  # Declara df_projetos como global
+    st.title("🏗️ Registrar Projeto")
 
-########################################## TELA - REGISTRAR TRANSAÇÃO ##########################################
+    with st.form("form_projeto"):
+        Projeto = st.text_input("ID Projeto")
+        Cliente = st.text_input("Nome do cliente")
+        Localizacao = st.text_input("Localização")
+        Placa = st.selectbox("Placa", ["Sim", "Não"])
+        Post = st.selectbox("Post", ["Sim", "Não"])
+        DataInicio = st.date_input("Data de Início")
+        DataFinal = st.date_input("Data Final")
+        Contrato = st.selectbox("Contrato", ["Sim", "Não"])
+        Status = st.selectbox("Status", ["Concluído", "Em Andamento", "A fazer", "Impedido"])
+        Briefing = st.selectbox("Briefing", ["Sim", "Não"])
+        Arquiteto = st.text_input("Arquiteto")
+        Tipo = st.selectbox("Tipo", ["Residencial", "Comercial"])
+        Pacote = st.selectbox("Pacote", ["Completo", "Estrutural e Hidráulico", "Estrutural e Elétrico"])
+        m2 = st.number_input("m²", min_value=0.0, step=1.0)
+        Parcelas = st.number_input("Parcelas", min_value=0, step=1)
+        ValorTotal = st.number_input("Valor Total", min_value=0.0, step=1.0, format="%.2f")
+        ResponsávelElétrico = st.selectbox("ResponsávelElétrico", ["Flávio"])
+        ResponsávelHidráulico = st.selectbox("ResponsávelHidráulico", ["Flávio"])
+        ResponsávelModelagem = st.selectbox("ResponsávelModelagem", ["Bia"])
+        ResponsávelDetalhamento = st.selectbox("ResponsávelDetalhamento", ["Bia"])
+        submit = st.form_submit_button("Salvar Projeto")
 
-def registrar_transacao_tela():
-    st.title("💾 Registrar Transação")
-    
-    # Seleção do tipo de transação
-    tipo = st.radio("Tipo de Transação", ["Receita", "Despesa"], key="tipo_transacao")
-    
-    # Atualiza as opções de categoria de acordo com o tipo selecionado
-    if tipo == "Receita":
-        dataContrato = st.date_input("Data")
-        projeto = st.selectbox(df_projetos["Clientes"])
-        descricao = st.text_input("Descrição")
-        categoria = st.selectbox("Categoria", ["Salário", "Investimentos", "Freelance", "Outros"])
-        detalhes_adicionais = st.text_input("Fonte da Receita", "Ex: Nome da empresa, cliente, etc.")
-        valor = st.number_input("Valor", min_value=0.0, step=0.01, format="%.2f")
-    else:
-        data = st.date_input("Data")
-        descricao = st.text_input("Descrição")
-        categoria = st.selectbox("Categoria", ["Alimentação", "Moradia", "Transporte", "Lazer", "Outros"])
-        detalhes_adicionais = st.text_input("Método de Pagamento", "Ex: Cartão, Dinheiro, Transferência")
-        valor = st.number_input("Valor", min_value=0.0, step=0.01, format="%.2f")
-
-    if st.button("Salvar Transação"):
-        # Registrar transação com base no tipo
-        if tipo == "Receita":
-            # Cria ou carrega o arquivo de receitas
-            try:
-                df_receitas = pd.read_csv("receitas.csv")
-            except FileNotFoundError:
-                df_receitas = pd.DataFrame(columns=["Data", "Descrição", "Categoria", "Valor", "Tipo", "Detalhes"])
-            
-            # Adiciona a transação
-            nova_transacao = pd.DataFrame([[dataContrato, descricao, categoria, valor, tipo, detalhes_adicionais]],
-                                          columns=["Data", "Descrição", "Categoria", "Valor", "Tipo", "Detalhes"])
-            df_receitas = pd.concat([df_receitas, nova_transacao], ignore_index=True)
-            df_receitas.to_csv("receitas.csv", index=False)  # Salva no arquivo
-
-        else:
-            # Cria ou carrega o arquivo de despesas
-            try:
-                df_despesas = pd.read_csv("despesas.csv")
-            except FileNotFoundError:
-                df_despesas = pd.DataFrame(columns=["Data", "Descrição", "Categoria", "Valor", "Tipo", "Detalhes"])
-            
-            # Adiciona a transação
-            nova_transacao = pd.DataFrame([[data, descricao, categoria, valor, tipo, detalhes_adicionais]],
-                                          columns=["Data", "Descrição", "Categoria", "Valor", "Tipo", "Detalhes"])
-            df_despesas = pd.concat([df_despesas, nova_transacao], ignore_index=True)
-            df_despesas.to_csv("despesas.csv", index=False)  # Salva no arquivo
-        
-        st.success("Transação registrada com sucesso!")
-
-# Inicializando o estado da sessão, se necessário
-if "transactions" not in st.session_state:
-    st.session_state["transactions"] = pd.DataFrame(columns=["Data", "Descrição", "Categoria", "Valor", "Tipo", "Detalhes"])
-
-########################################## CNPJ ##########################################
-
-# # Função para buscar informações do CNPJ
-# def buscar_cnpj(cnpj):
-#     url = f"https://receitaws.com.br/v1/cnpj/{cnpj}"
-#     try:
-#         response = requests.get(url)
-#         if response.status_code == 200:
-#             return response.json()
-#         else:
-#             st.error("Não foi possível buscar informações do CNPJ. Verifique o número e tente novamente.")
-#             return None
-#     except Exception as e:
-#         st.error(f"Erro ao buscar CNPJ: {e}")
-#         return None
-
-# # Tela de consulta ao CNPJ
-# def consultar_cnpj():
-#     st.title("🔍 Busca de Informações pelo CNPJ")
-
-#     cnpj_input = st.text_input("Digite o CNPJ:", placeholder="Ex.: 00000000000191")
-#     if st.button("Buscar"):
-#         if cnpj_input:
-#             cnpj_data = buscar_cnpj(cnpj_input)
-#             if cnpj_data:
-#                 st.write(f"**Nome da Empresa:** {cnpj_data.get('nome')}")
-#                 st.write(f"**Situação:** {cnpj_data.get('situacao')}")
-#                 st.write(f"**UF:** {cnpj_data.get('uf')}")
-#                 st.write(f"**Atividade Principal:** {cnpj_data.get('atividade_principal')[0]['text']}")
-#             else:
-#                 st.warning("Nenhum dado encontrado para o CNPJ informado.")
-#         else:
-#             st.warning("Por favor, insira um CNPJ válido.")
-
-########################################## SALDO ##########################################
-
-# Função para calcular o saldo
-def calcular_saldo(transactions):
-    receitas = transactions[transactions["Tipo"] == "Receita"]["Valor"].sum()
-    despesas = transactions[transactions["Tipo"] == "Despesa"]["Valor"].sum()
-    saldo = receitas - despesas
-    return receitas, despesas, saldo
+    if submit:
+        novo_projeto = pd.DataFrame({
+            "Projeto": [Projeto],
+            "Cliente": [Cliente],
+            "Localizacao": [Localizacao],
+            "Placa": [Placa],
+            "Post": [Post],
+            "DataInicio": [DataInicio],
+            "DataFinal": [DataFinal],
+            "Contrato": [Contrato],
+            "Status": [Status],
+            "Briefing": [Briefing],
+            "Arquiteto": [Arquiteto],
+            "Tipo": [Tipo],
+            "Pacote": [Pacote],
+            "m2": [m2],
+            "Parcelas": [Parcelas],
+            "ValorTotal": [ValorTotal],
+            "ResponsávelElétrico": [ResponsávelElétrico],
+            "ResponsávelHidráulico": [ResponsávelHidráulico],
+            "ResponsávelModelagem": [ResponsávelModelagem],
+            "ResponsávelDetalhamento": [ResponsávelDetalhamento]
+        })
+        df_projetos = pd.concat([df_projetos, novo_projeto], ignore_index=True)
+        salvar_dados(df_projetos, PROJETOS_PATH)
+        st.success("Projeto registrado com sucesso!")
 
 ########################################## DASHBOARD ##########################################
 
 def dashboard():
     st.title("📊 Dashboard Financeiro")
-    
-    # Dados e cálculos
-    transactions = st.session_state["transactions"]
 
-    if transactions.empty:
-        st.info("Nenhuma transação registrada ainda.")
-        return
-    
-    receitas = transactions[transactions["Tipo"] == "Receita"]["Valor"].sum()
-    despesas = transactions[transactions["Tipo"] == "Despesa"]["Valor"].sum()
+    # Cálculos
+    receitas = df_receitas["ValorTotal"].sum()
+    despesas = df_despesas["ValorTotal"].sum()
     saldo = receitas - despesas
 
-###################### CARDS ######################
-
-    # Layout de Cards
+    # Cards
     col1, col2, col3 = st.columns(3)
     with col1:
         st.markdown('<div class="card"><h3>Receitas</h3><p>R$ {:,.2f}</p></div>'.format(receitas), unsafe_allow_html=True)
@@ -297,78 +245,58 @@ def dashboard():
     with col3:
         st.markdown('<div class="card"><h3>Saldo</h3><p>R$ {:,.2f}</p></div>'.format(saldo), unsafe_allow_html=True)
 
-###################### GRÁFICO ######################
-
     # Gráfico
-    if not transactions.empty:
+    if not df_receitas.empty or not df_despesas.empty:
+        df_transacoes = pd.concat([df_receitas.assign(Tipo="Receita"), df_despesas.assign(Tipo="Despesa")])
         fig = px.bar(
-            transactions,
+            df_transacoes,
             x="Categoria",
-            y="Valor",
+            y="ValorTotal",
             color="Tipo",
             title="Receitas e Despesas por Categoria",
-            barmode="group",
-            text="Valor",
+            barmode="group"
         )
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("Nenhuma transação registrada ainda.")
 
-########################################## RELATÓRIO ##########################################
+########################################## RELATÓRIOS ##########################################
 
-def relatorio():
+def relatorios():
     st.title("📈 Relatórios Financeiros")
 
-    transactions = st.session_state["transactions"]
-
-    if not transactions.empty:
-        # Tabela de transações
-        st.dataframe(transactions)
-
-        # Gráficos
-        fig_pie = px.pie(
-            transactions,
-            values="Valor",
-            names="Categoria",
-            title="Distribuição por Categoria",
-            hole=0.5,
-            color_discrete_sequence=px.colors.sequential.RdBu
-        )
-        st.plotly_chart(fig_pie, use_container_width=True)
-
+    if not df_receitas.empty or not df_despesas.empty:
+        st.dataframe(df_receitas)
+        st.dataframe(df_despesas)
     else:
         st.info("Nenhuma transação registrada ainda.")
 
 ########################################## PÁGINA PRINCIPAL ##########################################
 
-# Tela do sistema (após login)
 def main_app():
     st.sidebar.image("imagens/VRZ-LOGO-44.png")
     st.sidebar.title("Menu")
     menu_option = st.sidebar.radio(
         "Selecione a funcionalidade:",
-        ("Dashboard", "Registrar Transação", "Relatórios", "Consultar CNPJ", "Sair")
+        ("Dashboard", "Registrar Receita", "Registrar Despesa", "Registrar Projeto", "Relatórios", "Sair")
     )
 
     if menu_option == "Dashboard":
         dashboard()
-
-    elif menu_option == "Registrar Transação":
-        registrar_transacao_tela()
-
+    elif menu_option == "Registrar Receita":
+        registrar_receita()
+    elif menu_option == "Registrar Despesa":
+        registrar_despesa()
+    elif menu_option == "Registrar Projeto":
+        registrar_projeto()
     elif menu_option == "Relatórios":
-        relatorio()
-
-    elif menu_option == "Consultar CNPJ":
-        print("")
-
+        relatorios()
     elif menu_option == "Sair":
         st.session_state["logged_in"] = False
         st.success("Você saiu do sistema.")
 
-########################################## ACESSO AO SISTEMA ##########################################
+########################################## EXECUÇÃO ##########################################
 
-# Controle de acesso ao sistema
 if __name__ == "__main__":
     if "logged_in" not in st.session_state:
         st.session_state["logged_in"] = False
