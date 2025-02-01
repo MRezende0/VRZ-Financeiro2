@@ -13,6 +13,13 @@ st.set_page_config(
     layout="wide",
 )
 
+st.markdown(
+    """
+    <link rel="vrz-icon" sizes="180x180" href="imagens/VRZ-LOGO-50.png">
+    """,
+    unsafe_allow_html=True
+)
+
 # Estilo personalizado
 def add_custom_css():
     st.markdown("""
