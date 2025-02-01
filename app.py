@@ -2,13 +2,14 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import os
+from dateutil.relativedelta import relativedelta
 
 ########################################## CONFIGURAÇÃO ##########################################
 
 # Configuração inicial da página
 st.set_page_config(
     page_title="VRZ Gestão Financeira",
-    page_icon="💸",
+    page_icon="imagens/VRZ-LOGO-50.png",
     layout="wide",
 )
 
@@ -190,21 +191,56 @@ def registrar_despesa():
         submit = st.form_submit_button("Salvar Despesa")
 
     if submit:
-        nova_despesa = pd.DataFrame({
-            "DataPagamento": [DataPagamento],
-            "Descrição": [Descricao],
-            "Categoria": [Categoria],
-            "ValorTotal": [ValorTotal],
-            "Parcelas": [Parcelas],
-            "FormaPagamento": [FormaPagamento],
-            "Responsável": [Responsável],
-            "Fornecedor": [Fornecedor],
-            "Projeto": [Projeto],
-            "NF": [NF]
-        })
-        df_despesas = pd.concat([df_despesas, nova_despesa], ignore_index=True)
+        # Calcula o valor de cada parcela
+        valor_parcela = round(ValorTotal / Parcelas, 2)
+
+        # Lista para armazenar as parcelas
+        parcelas = []
+
+        # Gera as parcelas
+        for i in range(Parcelas):
+            data_parcela = DataPagamento + relativedelta(months=+i)  # Incrementa a data em 'i' meses
+            parcela_info = {
+                "DataPagamento": data_parcela,
+                "Descrição": Descricao,
+                "Categoria": Categoria,
+                "ValorTotal": valor_parcela,
+                "Parcelas": f"{i + 1}/{Parcelas}",  # Identifica a parcela atual
+                "FormaPagamento": FormaPagamento,
+                "Responsável": Responsável,
+                "Fornecedor": Fornecedor,
+                "Projeto": Projeto,
+                "NF": NF
+            }
+            parcelas.append(parcela_info)
+
+        # Cria um DataFrame com as parcelas
+        df_parcelas = pd.DataFrame(parcelas)
+
+        # Adiciona as parcelas ao DataFrame de despesas
+        df_despesas = pd.concat([df_despesas, df_parcelas], ignore_index=True)
+
+        # Salva as despesas no arquivo CSV
         df_despesas.to_csv(DESPESAS_PATH, index=False)
-        st.success("Despesa registrada com sucesso!")
+
+        st.success(f"Despesa registrada com sucesso! {Parcelas} parcela(s) criada(s).")
+
+    # if submit:
+    #     nova_despesa = pd.DataFrame({
+    #         "DataPagamento": [DataPagamento],
+    #         "Descrição": [Descricao],
+    #         "Categoria": [Categoria],
+    #         "ValorTotal": [ValorTotal],
+    #         "Parcelas": [Parcelas],
+    #         "FormaPagamento": [FormaPagamento],
+    #         "Responsável": [Responsável],
+    #         "Fornecedor": [Fornecedor],
+    #         "Projeto": [Projeto],
+    #         "NF": [NF]
+    #     })
+    #     df_despesas = pd.concat([df_despesas, nova_despesa], ignore_index=True)
+    #     df_despesas.to_csv(DESPESAS_PATH, index=False)
+    #     st.success("Despesa registrada com sucesso!")
 
     # Campo para adicionar nova categoria de despesa
     novo_fornecedor = st.text_input("Novo Fornecedor")
@@ -241,10 +277,10 @@ def registrar_projeto():
         m2 = st.number_input("m²", min_value=0.0, step=1.0)
         Parcelas = st.number_input("Parcelas", min_value=0, step=1)
         ValorTotal = st.number_input("Valor Total", min_value=0.0, step=1.0, format="%.2f")
-        ResponsávelElétrico = st.selectbox("ResponsávelElétrico", ["Flávio"])
-        ResponsávelHidráulico = st.selectbox("ResponsávelHidráulico", ["Flávio"])
-        ResponsávelModelagem = st.selectbox("ResponsávelModelagem", ["Bia"])
-        ResponsávelDetalhamento = st.selectbox("ResponsávelDetalhamento", ["Bia"])
+        ResponsávelElétrico = st.selectbox("Responsável pelo Elétrico", ["Flávio"])
+        ResponsávelHidráulico = st.selectbox("Responsável pelo Hidráulico", ["Flávio"])
+        ResponsávelModelagem = st.selectbox("Responsável pela Modelagem", ["Bia"])
+        ResponsávelDetalhamento = st.selectbox("Responsável pelo Detalhamento", ["Bia"])
         submit = st.form_submit_button("Salvar Projeto")
 
     if submit:
@@ -281,27 +317,6 @@ def formatar_br(valor):
 
 def dashboard():
 
-    # # Filtros acima dos gráficos de receitas e despesas
-    # st.markdown("### Filtros para Receitas e Despesas")
-    # col1, col2 = st.columns(2)
-    # with col1:
-    #     categorias_receitas = df_receitas["Categoria"].unique()
-    #     categoria_receita_selecionada = st.multiselect("Categoria de Receitas", categorias_receitas)
-    # with col2:
-    #     categorias_despesas = df_despesas["Categoria"].unique()
-    #     categoria_despesa_selecionada = st.multiselect("Categoria de Despesas", categorias_despesas)
-
-    # # Aplicar filtros aos dados
-    # if categoria_receita_selecionada:
-    #     df_receitas_filtrado = df_receitas[df_receitas["Categoria"].isin(categoria_receita_selecionada)]
-    # else:
-    #     df_receitas_filtrado = df_receitas
-
-    # if categoria_despesa_selecionada:
-    #     df_despesas_filtrado = df_despesas[df_despesas["Categoria"].isin(categoria_despesa_selecionada)]
-    # else:
-    #     df_despesas_filtrado = df_despesas
-
     st.title("📊 Dashboard Financeiro")
 
     # Cálculos
@@ -332,6 +347,152 @@ def dashboard():
     # Cores fixas para receitas e despesas
     cor_receitas = "#4caf50"  # Verde
     cor_despesas = "#e74c3c"  # Vermelho
+
+    # Filtros acima dos gráficos de receitas e despesas
+    # st.markdown("### Filtros para Receitas e Despesas")
+    st.divider()
+
+
+
+
+
+
+
+
+
+
+
+    # Converter colunas de data para datetime com o formato correto
+    # df_receitas["DataRecebimento"] = pd.to_datetime(df_receitas["DataRecebimento"], format="%d/%m/%Y", dayfirst=True)
+    # df_despesas["DataPagamento"] = pd.to_datetime(df_despesas["DataPagamento"], format="%d/%m/%Y", dayfirst=True)
+    # df_projetos["DataInicio"] = pd.to_datetime(df_projetos["DataInicio"], format="%d/%m/%Y", dayfirst=True)
+    # df_projetos["DataFinal"] = pd.to_datetime(df_projetos["DataFinal"], format="%d/%m/%Y", dayfirst=True)
+
+    # Filtros na sidebar
+    st.sidebar.title("Filtros Globais")
+
+    # Filtro por período (afeta receitas, despesas e projetos)
+    # st.sidebar.markdown("### Filtro por Período")
+    # data_inicio = st.sidebar.date_input("Data de Início", value=pd.to_datetime("2023-01-01"))
+    # data_fim = st.sidebar.date_input("Data de Fim", value=pd.to_datetime("2023-12-31"))
+
+    # Filtro por categoria (afeta receitas e despesas)
+    st.sidebar.markdown("### Filtro por Categoria")
+    categorias_receitas = df_receitas["Categoria"].unique()
+    categorias_despesas = df_despesas["Categoria"].unique()
+    categorias = list(set(categorias_receitas) | set(categorias_despesas))  # União das categorias
+    categoria_selecionada = st.sidebar.multiselect("Categoria", categorias)
+
+    # Filtro por número do projeto (afeta receitas, despesas e projetos)
+    st.sidebar.markdown("### Filtro por Projeto")
+    projetos = df_projetos["Projeto"].unique()
+    projeto_selecionado = st.sidebar.multiselect("Projeto", projetos)
+
+    # Filtro por responsável (afeta despesas e projetos)
+    st.sidebar.markdown("### Filtro por Responsável")
+    responsaveis_despesas = df_despesas["Responsável"].unique()
+    responsaveis_projetos = df_projetos["ResponsávelElétrico"].unique().tolist() + \
+                            df_projetos["ResponsávelHidráulico"].unique().tolist() + \
+                            df_projetos["ResponsávelModelagem"].unique().tolist() + \
+                            df_projetos["ResponsávelDetalhamento"].unique().tolist()
+    responsaveis = list(set(responsaveis_despesas) | set(responsaveis_projetos))  # União dos responsáveis
+    responsavel_selecionado = st.sidebar.multiselect("Responsável", responsaveis)
+
+    # Filtro por fornecedor (afeta despesas)
+    st.sidebar.markdown("### Filtro por Fornecedor")
+    fornecedores = df_despesas["Fornecedor"].unique()
+    fornecedor_selecionado = st.sidebar.multiselect("Fornecedor", fornecedores)
+
+    # Filtro por status (afeta projetos)
+    st.sidebar.markdown("### Filtro por Status")
+    status = df_projetos["Status"].unique()
+    status_selecionado = st.sidebar.multiselect("Status", status)
+
+    # Filtro por arquiteto (afeta projetos)
+    st.sidebar.markdown("### Filtro por Arquiteto")
+    arquitetos = df_projetos["Arquiteto"].unique()
+    arquiteto_selecionado = st.sidebar.multiselect("Arquiteto", arquitetos)
+
+    # Aplicar filtros aos datasets
+    df_receitas_filtrado = df_receitas.copy()
+    df_despesas_filtrado = df_despesas.copy()
+    df_projetos_filtrado = df_projetos.copy()
+
+    # Filtro por período
+    # df_receitas_filtrado = df_receitas_filtrado[
+    #     (df_receitas_filtrado["DataRecebimento"] >= pd.to_datetime(data_inicio)) &
+    #     (df_receitas_filtrado["DataRecebimento"] <= pd.to_datetime(data_fim))
+    # ]
+    # df_despesas_filtrado = df_despesas_filtrado[
+    #     (df_despesas_filtrado["DataPagamento"] >= pd.to_datetime(data_inicio)) &
+    #     (df_despesas_filtrado["DataPagamento"] <= pd.to_datetime(data_fim))
+    # ]
+    # df_projetos_filtrado = df_projetos_filtrado[
+    #     (df_projetos_filtrado["DataInicio"] >= pd.to_datetime(data_inicio)) &
+    #     (df_projetos_filtrado["DataFinal"] <= pd.to_datetime(data_fim))
+    # ]
+
+    # Filtro por categoria
+    if categoria_selecionada:
+        df_receitas_filtrado = df_receitas_filtrado[df_receitas_filtrado["Categoria"].isin(categoria_selecionada)]
+        df_despesas_filtrado = df_despesas_filtrado[df_despesas_filtrado["Categoria"].isin(categoria_selecionada)]
+
+    # Filtro por projeto
+    if projeto_selecionado:
+        df_receitas_filtrado = df_receitas_filtrado[df_receitas_filtrado["Projeto"].isin(projeto_selecionado)]
+        df_despesas_filtrado = df_despesas_filtrado[df_despesas_filtrado["Projeto"].isin(projeto_selecionado)]
+        df_projetos_filtrado = df_projetos_filtrado[df_projetos_filtrado["Projeto"].isin(projeto_selecionado)]
+
+    # Filtro por responsável
+    if responsavel_selecionado:
+        df_despesas_filtrado = df_despesas_filtrado[df_despesas_filtrado["Responsável"].isin(responsavel_selecionado)]
+        df_projetos_filtrado = df_projetos_filtrado[
+            (df_projetos_filtrado["ResponsávelElétrico"].isin(responsavel_selecionado)) |
+            (df_projetos_filtrado["ResponsávelHidráulico"].isin(responsavel_selecionado)) |
+            (df_projetos_filtrado["ResponsávelModelagem"].isin(responsavel_selecionado)) |
+            (df_projetos_filtrado["ResponsávelDetalhamento"].isin(responsavel_selecionado))
+        ]
+
+    # Filtro por fornecedor
+    if fornecedor_selecionado:
+        df_despesas_filtrado = df_despesas_filtrado[df_despesas_filtrado["Fornecedor"].isin(fornecedor_selecionado)]
+
+    # Filtro por status
+    if status_selecionado:
+        df_projetos_filtrado = df_projetos_filtrado[df_projetos_filtrado["Status"].isin(status_selecionado)]
+
+    # Filtro por arquiteto
+    if arquiteto_selecionado:
+        df_projetos_filtrado = df_projetos_filtrado[df_projetos_filtrado["Arquiteto"].isin(arquiteto_selecionado)]
+
+    # Exibir dados filtrados
+    st.header("Dados Filtrados")
+    st.subheader("Receitas")
+    st.dataframe(df_receitas_filtrado)
+
+    st.subheader("Despesas")
+    st.dataframe(df_despesas_filtrado)
+
+    st.subheader("Projetos")
+    st.dataframe(df_projetos_filtrado)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    st.divider()
 
     # Gráfico 1: Quantidade de receitas por mês/ano
     if not df_receitas.empty:

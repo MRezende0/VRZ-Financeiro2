@@ -3,3 +3,13 @@ DataPagamento,Descrição,Categoria,ValorTotal,Parcelas,FormaPagamento,Responsá
 2025-01-24,,Aluguel,20.0,1,Cartão de Crédito,Bruno,-,80,Sim
 2025-02-12,dfwdfcw,Aluguel,2000.0,1,Pix,Victor,Cantu Placas,50,Sim
 2025-03-14,dfwdfcw,Alimentação,199.0,1,Dinheiro,Bruno,Alessandro Contabilidade,80,Sim
+2025-04-15,vfervf (Parcela 1/4),Pró-Labore,25.0,1/4,Cartão de Crédito,Bruno,Garseg,50,Sim
+2025-05-15,vfervf (Parcela 2/4),Pró-Labore,25.0,2/4,Cartão de Crédito,Bruno,Garseg,50,Sim
+2025-06-15,vfervf (Parcela 3/4),Pró-Labore,25.0,3/4,Cartão de Crédito,Bruno,Garseg,50,Sim
+2025-07-15,vfervf (Parcela 4/4),Pró-Labore,25.0,4/4,Cartão de Crédito,Bruno,Garseg,50,Sim
+2025-01-31,rgr,Aluguel,333.3333333333333,1/3,Pix,Bruno,Impostos,80,Não
+2025-02-28,rgr,Aluguel,333.3333333333333,2/3,Pix,Bruno,Impostos,80,Não
+2025-03-31,rgr,Aluguel,333.3333333333333,3/3,Pix,Bruno,Impostos,80,Não
+2025-01-29,wqd,Alimentação,66.67,1/3,TED,Victor,Mercado,80,Não
+2025-02-28,wqd,Alimentação,66.67,2/3,TED,Victor,Mercado,80,Não
+2025-03-29,wqd,Alimentação,66.67,3/3,TED,Victor,Mercado,80,Não
