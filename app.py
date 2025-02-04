@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import os
 from dateutil.relativedelta import relativedelta
+from datetime import datetime
 
 ########################################## CONFIGURAÇÃO ##########################################
 
@@ -79,6 +80,12 @@ df_receitas = carregar_dados(RECEITAS_PATH, ["DataRecebimento", "Descrição", "
 df_despesas = carregar_dados(DESPESAS_PATH, ["DataPagamento", "Descrição", "Categoria", "ValorTotal", "Parcelas", "FormaPagamento", "Responsável", "Fornecedor", "Projeto", "NF"])
 df_projetos = carregar_dados(PROJETOS_PATH, ["Projeto", "Cliente", "Localizacao", "Placa", "Post", "DataInicio", "DataFinal", "Contrato", "Status", "Briefing", "Arquiteto", "Tipo", "Pacote", "m2", "Parcelas", "ValorTotal", "ResponsávelElétrico", "ResponsávelHidráulico", "ResponsávelModelagem", "ResponsávelDetalhamento"]).sort_values("Projeto")
 
+# Converter colunas de data explicitamente
+df_receitas["DataRecebimento"] = pd.to_datetime(df_receitas["DataRecebimento"], dayfirst=True, errors="coerce")
+df_despesas["DataPagamento"] = pd.to_datetime(df_despesas["DataPagamento"], dayfirst=True, errors="coerce")
+df_projetos["DataInicio"] = pd.to_datetime(df_projetos["DataInicio"], dayfirst=True, errors="coerce")
+df_projetos["DataFinal"] = pd.to_datetime(df_projetos["DataFinal"], dayfirst=True, errors="coerce")
+
 # Carrega as categorias de receitas e despesas
 if os.path.exists(CATEGORIAS_RECEITAS_PATH):
     df_categorias_receitas = pd.read_csv(CATEGORIAS_RECEITAS_PATH)
@@ -106,7 +113,7 @@ def login(email, senha):
 
 # Tela de Login
 def login_screen():
-    st.title("🔐 Login - VRZ Gestão Financeira")
+    # st.title("🔐 Login - VRZ Gestão Financeira")
     st.markdown("Por favor, insira suas credenciais para acessar o sistema.")
 
     # Formulário de login
@@ -132,7 +139,7 @@ def salvar_dados(df, caminho):
 # Tela de Registrar Receita
 def registrar_receita():
     global df_receitas, df_categorias_receitas
-    st.title("💸 Registrar Receita")
+    # st.title("💸 Registrar Receita")
 
     with st.form("form_receita"):
         DataRecebimento = st.date_input("Data de Recebimento")
@@ -310,6 +317,22 @@ def registrar_projeto():
         salvar_dados(df_projetos, PROJETOS_PATH)
         st.success("Projeto registrado com sucesso!")
 
+def registrar():
+    st.title("📝 Registrar")
+
+    # Seletor para escolher o tipo de registro
+    tipo_registro = st.radio(
+        "O que você deseja registrar?",
+        ("Receita", "Despesa", "Projeto")
+    )
+
+    if tipo_registro == "Receita":
+        registrar_receita()
+    elif tipo_registro == "Despesa":
+        registrar_despesa()
+    elif tipo_registro == "Projeto":
+        registrar_projeto()
+
 ########################################## DASHBOARD ##########################################
 
 def formatar_br(valor):
@@ -317,7 +340,7 @@ def formatar_br(valor):
 
 def dashboard():
 
-    st.title("📊 Dashboard Financeiro")
+    # st.title("📊 Dashboard Financeiro")
 
     # Cálculos
     receitas = df_receitas["ValorTotal"].sum()
@@ -815,14 +838,351 @@ def dashboard():
 
 ########################################## RELATÓRIOS ##########################################
 
+# Função para carregar os dados de receitas e despesas
+def carregar_dados():
+    try:
+        df_receitas = pd.read_csv("receitas.csv")  # Substitua pelo caminho do seu arquivo de receitas
+    except FileNotFoundError:
+        df_receitas = pd.DataFrame()
+
+    try:
+        df_despesas = pd.read_csv("despesas.csv")  # Substitua pelo caminho do seu arquivo de despesas
+    except FileNotFoundError:
+        df_despesas = pd.DataFrame()
+
+    return df_receitas, df_despesas
+
+# Função para filtrar os dados por período
+def filtrar_por_periodo(df, mes, ano):
+    if "Data" in df.columns:
+        df["Data"] = pd.to_datetime(df["Data"])
+        return df[(df["Data"].dt.month == mes) & (df["Data"].dt.year == ano)]
+    return df
+
+# Função para exibir a página de relatórios
 def relatorios():
     st.title("📈 Relatórios Financeiros")
 
-    if not df_receitas.empty or not df_despesas.empty:
-        st.dataframe(df_receitas)
-        st.dataframe(df_despesas)
+    # Carregar os dados
+    df_receitas, df_despesas = carregar_dados()
+
+    # Selecionar mês e ano para análise
+    mes = st.selectbox("Selecione o mês", range(1, 13), index=0)
+    ano = st.selectbox("Selecione o ano", range(2020, 2031), index=3)
+
+    # Filtrar os dados pelo período selecionado
+    df_receitas_filtrado = filtrar_por_periodo(df_receitas, mes, ano)
+    df_despesas_filtrado = filtrar_por_periodo(df_despesas, mes, ano)
+
+    # Exibir os dados filtrados
+    if not df_receitas_filtrado.empty or not df_despesas_filtrado.empty:
+        st.write("### Receitas")
+        st.dataframe(df_receitas_filtrado)
+
+        st.write("### Despesas")
+        st.dataframe(df_despesas_filtrado)
+
+        # Cálculos financeiros
+        total_receitas = df_receitas_filtrado["Valor"].sum()
+        total_despesas = df_despesas_filtrado["Valor"].sum()
+        saldo_final = total_receitas - total_despesas
+
+        st.write("### Resumo Financeiro")
+        st.write(f"**Total de Receitas:** R$ {total_receitas:.2f}")
+        st.write(f"**Total de Despesas:** R$ {total_despesas:.2f}")
+        st.write(f"**Saldo Final:** R$ {saldo_final:.2f}")
+
+        # Botões para exportar os dados
+        st.write("### Exportar Dados")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Exportar Receitas (CSV)"):
+                df_receitas_filtrado.to_csv("receitas_filtrado.csv", index=False)
+                st.success("Receitas exportadas com sucesso!")
+        with col2:
+            if st.button("Exportar Despesas (CSV)"):
+                df_despesas_filtrado.to_csv("despesas_filtrado.csv", index=False)
+                st.success("Despesas exportadas com sucesso!")
     else:
-        st.info("Nenhuma transação registrada ainda.")
+        st.info("Nenhuma transação registrada para o período selecionado.")
+
+########################################## PROJETOS ##########################################
+
+# Função para carregar os projetos do arquivo CSV
+def carregar_projetos():
+    try:
+        return pd.read_csv(PROJETOS_PATH)
+    except FileNotFoundError:
+        st.error("Arquivo CSV não encontrado.")
+        return pd.DataFrame()
+
+# Função para salvar os projetos no arquivo CSV
+def salvar_projetos(df):
+    try:
+        df.to_csv(PROJETOS_PATH, index=False)
+        st.success("Alterações salvas com sucesso!")
+    except Exception as e:
+        st.error(f"Erro ao salvar o arquivo CSV: {e}")
+
+# Função para exibir os projetos como cards clicáveis
+def projetos():
+    st.title("📂 Projetos")
+
+    # Carrega os projetos do arquivo CSV
+    df_projetos = carregar_projetos()
+    
+    filtro_dropdown = st.selectbox(
+        "🔍 Selecione um projeto",
+        options=[""] + list(df_projetos["Projeto"].unique()),  # Dropdown inclui opção vazia
+        index=0
+    )
+
+    # Filtrar os projetos
+    if filtro_dropdown:
+        df_projetos = df_projetos[df_projetos["Projeto"] == filtro_dropdown]
+    else:
+        df_projetos = df_projetos
+
+    # Divide a tela em 3 colunas
+    col1, col2, col3 = st.columns(3)
+
+    for i, row in df_projetos.iterrows():
+        # Criando um card HTML clicável com efeito hover
+        card = f"""
+        <div onclick="selectProject({i})" style="
+            background-color: #ffffff;
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #ddd;
+            text-align: center;
+            width: 220px;
+            height: 160px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        "
+        onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='4px 4px 15px rgba(0,0,0,0.2)';"
+        onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='2px 2px 10px rgba(0,0,0,0.1)';">
+            <strong>{row['Projeto']}</strong><br>
+            📌 Cliente: {row['Cliente']}<br>
+            📍 Localização: {row['Localizacao']}<br>
+            📏 Área: {row['m2']} m²
+        </div>
+        """
+
+        # Distribuir os cards nas colunas
+        if i % 3 == 0:
+            with col1:
+                if st.button(f"{row['Projeto']}", key=f"proj_{i}") :
+                    st.session_state["projeto_selecionado"] = row.to_dict()
+                st.markdown(card, unsafe_allow_html=True)
+        elif i % 3 == 1:
+            with col2:
+                if st.button(f"{row['Projeto']}", key=f"proj_{i}") :
+                    st.session_state["projeto_selecionado"] = row.to_dict()
+                st.markdown(card, unsafe_allow_html=True)
+        else:
+            with col3:
+                if st.button(f"{row['Projeto']}", key=f"proj_{i}") :
+                    st.session_state["projeto_selecionado"] = row.to_dict()
+                st.markdown(card, unsafe_allow_html=True)
+
+    # Verificar se um projeto foi selecionado
+    if "projeto_selecionado" in st.session_state:
+        projeto = st.session_state["projeto_selecionado"]
+
+        # Criar as abas para exibir detalhes ou editar
+        tabs = st.radio("Escolha uma opção", ("Detalhes", "Editar"))
+
+        if tabs == "Detalhes":
+            # Exibir detalhes do projeto selecionado
+            st.markdown(
+                f"""
+                <div style="
+                    background-color: #f8f9fa;
+                    padding: 20px;
+                    border-radius: 10px;
+                    border: 1px solid #ddd;
+                    box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
+                    text-align: left;
+                    margin-top: 20px;">
+                    <h3 style="text-align: center;">📄 Detalhes do Projeto</h3>
+                    <strong>Projeto:</strong> {projeto['Projeto']}<br>
+                    <strong>Cliente:</strong> {projeto['Cliente']}<br>
+                    <strong>Localização:</strong> {projeto['Localizacao']}<br>
+                    <strong>Placa:</strong> {projeto['Placa']}<br>
+                    <strong>Post:</strong> {projeto['Post']}<br>
+                    <strong>Data Inicial:</strong> {projeto['DataInicio']}<br>
+                    <strong>Data Final:</strong> {projeto['DataFinal']}<br>
+                    <strong>Contrato:</strong> {projeto['Contrato']}<br>
+                    <strong>Status:</strong> {projeto['Status']}<br>
+                    <strong>Briefing:</strong> {projeto['Briefing']}<br>
+                    <strong>Arquiteto:</strong> {projeto['Arquiteto']}<br>
+                    <strong>Tipo:</strong> {projeto['Tipo']}<br>
+                    <strong>Pacote:</strong> {projeto['Pacote']}<br>
+                    <strong>Área:</strong> {projeto['m2']} m²<br>
+                    <strong>Parcelas:</strong> {projeto['Parcelas']}<br>
+                    <strong>Valor Total:</strong> {projeto['ValorTotal']}<br>
+                    <strong>Responsável Elétrico:</strong> {projeto['ResponsávelElétrico']}<br>
+                    <strong>Responsável Hidráulico:</strong> {projeto['ResponsávelHidráulico']}<br>
+                    <strong>Responsável Modelagem:</strong> {projeto['ResponsávelModelagem']}<br>
+                    <strong>Responsável Detalhamento:</strong> {projeto['ResponsávelDetalhamento']}
+                </div>
+                """, 
+                unsafe_allow_html=True
+            )
+
+        elif tabs == "Editar":
+            # Formulário de edição do projeto
+            st.subheader("Editar Projeto")
+
+            with st.form(key="edit_form"):
+                # Campos de edição (como no seu código anterior)
+                Projeto = st.text_input("ID Projeto", value=projeto["Projeto"])
+                Cliente = st.text_input("Nome do cliente", value=projeto["Cliente"])
+                Localizacao = st.text_input("Localização", value=projeto["Localizacao"])
+                Placa = st.selectbox("Já possui placa na obra?", ["Sim", "Não"], index=["Sim", "Não"].index(projeto["Placa"]))
+                Post = st.selectbox("Já foi feito o post do projeto?", ["Sim", "Não"], index=["Sim", "Não"].index(projeto["Post"]))
+                DataInicio = st.date_input("Data de Início", value=datetime.strptime(projeto["DataInicio"], "%Y-%m-%d"))
+                DataFinal = st.date_input("Data de Conclusão Prevista", value=datetime.strptime(projeto["DataFinal"], "%Y-%m-%d"))
+                Contrato = st.selectbox("Contrato", ["Sim", "Não"], index=["Sim", "Não"].index(projeto["Contrato"]))
+                Status = st.selectbox("Status", ["Concluído", "Em Andamento", "A fazer", "Impedido"], index=["Concluído", "Em Andamento", "A fazer", "Impedido"].index(projeto["Status"]))
+                Briefing = st.selectbox("Briefing", ["Sim", "Não"], index=["Sim", "Não"].index(projeto["Briefing"]))
+                Arquiteto = st.text_input("Arquiteto", value=projeto["Arquiteto"])
+                Tipo = st.selectbox("Tipo", ["Residencial", "Comercial"], index=["Residencial", "Comercial"].index(projeto["Tipo"]))
+                Pacote = st.selectbox("Pacote", ["Completo", "Estrutural e Hidráulico", "Estrutural e Elétrico"], index=["Completo", "Estrutural e Hidráulico", "Estrutural e Elétrico"].index(projeto["Pacote"]))
+                m2 = st.number_input("m²", value=float(projeto["m2"]), min_value=0.0, step=1.0)
+                Parcelas = st.number_input("Parcelas", value=int(projeto["Parcelas"]), min_value=0, step=1)
+                ValorTotal = st.number_input("Valor Total", value=float(projeto["ValorTotal"]), min_value=0.0, step=1.0, format="%.2f")
+                ResponsávelElétrico = st.selectbox("Responsável pelo Elétrico", ["Flávio"], index=0 if projeto["ResponsávelElétrico"] == "Flávio" else 0)
+                ResponsávelHidráulico = st.selectbox("Responsável pelo Hidráulico", ["Flávio"], index=0 if projeto["ResponsávelHidráulico"] == "Flávio" else 0)
+                ResponsávelModelagem = st.selectbox("Responsável pela Modelagem", ["Bia"], index=0 if projeto["ResponsávelModelagem"] == "Bia" else 0)
+                ResponsávelDetalhamento = st.selectbox("Responsável pelo Detalhamento", ["Bia"], index=0 if projeto["ResponsávelDetalhamento"] == "Bia" else 0)
+
+                # Botões de salvar e cancelar
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    if st.form_submit_button("Salvar Alterações"):
+                        # Atualiza o projeto no DataFrame
+                        index = df_projetos[df_projetos["Projeto"] == projeto["Projeto"]].index[0]
+                        df_projetos.loc[index] = {
+                            "Projeto": Projeto,
+                            "Cliente": Cliente,
+                            "Localizacao": Localizacao,
+                            "Placa": Placa,
+                            "Post": Post,
+                            "DataInicio": DataInicio.strftime("%Y-%m-%d"),
+                            "DataFinal": DataFinal.strftime("%Y-%m-%d"),
+                            "Contrato": Contrato,
+                            "Status": Status,
+                            "Briefing": Briefing,
+                            "Arquiteto": Arquiteto,
+                            "Tipo": Tipo,
+                            "Pacote": Pacote,
+                            "m2": m2,
+                            "Parcelas": Parcelas,
+                            "ValorTotal": ValorTotal,
+                            "ResponsávelElétrico": ResponsávelElétrico,
+                            "ResponsávelHidráulico": ResponsávelHidráulico,
+                            "ResponsávelModelagem": ResponsávelModelagem,
+                            "ResponsávelDetalhamento": ResponsávelDetalhamento,
+                        }
+
+                        salvar_projetos(df_projetos)  # Salva no CSV
+                        st.session_state["projeto_selecionado"] = df_projetos.loc[index].to_dict()
+                        st.session_state["editando"] = False
+                        st.rerun()
+
+                with col2:
+                    if st.form_submit_button("Cancelar"):
+                        st.session_state["editando"] = False
+                        st.rerun()
+
+########################################## FUNCIONÁRIOS ##########################################
+
+# Dados dos funcionários (valor por m² projetado)
+FUNCIONARIOS = {
+    "Bia": 1.0,  # R$ 1,00 por m²
+    "Flávio": 0.8,  # R$ 0,80 por m²
+}
+
+# Função para carregar os projetos do arquivo CSV
+def carregar_projetos():
+    try:
+        return pd.read_csv(PROJETOS_PATH)
+    except FileNotFoundError:
+        st.error("Arquivo CSV não encontrado.")
+        return pd.DataFrame()
+
+# Função para calcular a produtividade dos funcionários
+def calcular_produtividade(df_projetos, mes, ano):
+    # Filtra os projetos pelo mês e ano
+    df_projetos["DataInicio"] = pd.to_datetime(df_projetos["DataInicio"], dayfirst=True, errors='coerce')
+    df_projetos_filtrados = df_projetos[
+        (df_projetos["DataInicio"].dt.month == mes) & (df_projetos["DataInicio"].dt.year == ano)
+    ]
+
+    # Calcula a produtividade de cada funcionário
+    produtividade = {funcionario: 0 for funcionario in FUNCIONARIOS}
+    for _, row in df_projetos_filtrados.iterrows():
+        if row["ResponsávelModelagem"] in FUNCIONARIOS:
+            produtividade[row["ResponsávelModelagem"]] += row["m2"]
+        if row["ResponsávelDetalhamento"] in FUNCIONARIOS:
+            produtividade[row["ResponsávelDetalhamento"]] += row["m2"]
+
+    return produtividade
+
+# Função para exibir a seção de Funcionários
+def funcionarios():
+    st.title("👥 Funcionários")
+
+    # Carrega os projetos
+    df_projetos = carregar_projetos()
+
+    # Selecionar mês e ano para análise
+    mes = st.selectbox("Selecione o mês", range(1, 13), index=0)
+    ano = st.selectbox("Selecione o ano", range(2020, 2031), index=3)
+
+    # Calcula a produtividade
+    produtividade = calcular_produtividade(df_projetos, mes, ano)
+
+    # Cria um DataFrame para exibição
+    df_produtividade = pd.DataFrame({
+        "Funcionário": list(produtividade.keys()),
+        "m² Projetado": list(produtividade.values()),
+        "Valor a Receber (R$)": [produtividade[func] * FUNCIONARIOS[func] for func in produtividade]
+    })
+
+    # Exibe o DataFrame
+    st.write("### Produtividade dos Funcionários")
+    st.dataframe(df_produtividade)
+
+    # Gráfico de m² projetado por funcionário
+    st.write("### m² Projetado por Funcionário")
+    fig_m2 = px.bar(
+        df_produtividade,
+        x="Funcionário",
+        y="m² Projetado",
+        title="m² Projetado por Funcionário",
+        labels={"Funcionário": "Funcionário", "m² Projetado": "m² Projetado"},
+    )
+    st.plotly_chart(fig_m2)
+
+    # Gráfico de valor a receber por funcionário
+    st.write("### Valor a Receber por Funcionário")
+    fig_valor = px.bar(
+        df_produtividade,
+        x="Funcionário",
+        y="Valor a Receber (R$)",
+        title="Valor a Receber por Funcionário",
+        labels={"Funcionário": "Funcionário", "Valor a Receber (R$)": "Valor a Receber (R$)"},
+    )
+    st.plotly_chart(fig_valor)
 
 ########################################## PÁGINA PRINCIPAL ##########################################
 
@@ -831,7 +1191,7 @@ def main_app():
     st.sidebar.title("Menu")
     menu_option = st.sidebar.radio(
         "Selecione a funcionalidade:",
-        ("Dashboard", "Registrar Receita", "Registrar Despesa", "Registrar Projeto", "Relatórios")
+        ("Dashboard", "Registrar", "Projetos", "Funcionários", "Relatórios")
     )
 
     # Botão "Sair" na parte inferior da sidebar
@@ -843,12 +1203,12 @@ def main_app():
 
     if menu_option == "Dashboard":
         dashboard()
-    elif menu_option == "Registrar Receita":
-        registrar_receita()
-    elif menu_option == "Registrar Despesa":
-        registrar_despesa()
-    elif menu_option == "Registrar Projeto":
-        registrar_projeto()
+    elif menu_option == "Registrar":
+        registrar()
+    elif menu_option == "Projetos":
+        projetos()
+    elif menu_option == "Funcionários":
+        funcionarios()
     elif menu_option == "Relatórios":
         relatorios()
 
