@@ -318,7 +318,7 @@ def registrar_projeto():
         st.success("Projeto registrado com sucesso!")
 
 def registrar():
-    st.title("📝 Registrar")
+    # st.title("📝 Registrar")
 
     # Seletor para escolher o tipo de registro
     tipo_registro = st.radio(
