@@ -139,7 +139,7 @@ def salvar_dados(df, caminho):
 # Tela de Registrar Receita
 def registrar_receita():
     global df_receitas, df_categorias_receitas
-    # st.title("💸 Registrar Receita")
+    st.title("💸 Registrar Receita")
 
     with st.form("form_receita"):
         DataRecebimento = st.date_input("Data de Recebimento")
@@ -340,7 +340,7 @@ def formatar_br(valor):
 
 def dashboard():
 
-    # st.title("📊 Dashboard Financeiro")
+    st.title("📊 Dashboard Financeiro")
 
     # Cálculos
     receitas = df_receitas["ValorTotal"].sum()
