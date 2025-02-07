@@ -1108,7 +1108,7 @@ def projetos():
 # Dados dos funcionários (valor por m² projetado)
 FUNCIONARIOS = {
     "Bia": 1.0,  # R$ 1,00 por m²
-    "Flávio": 0.8,  # R$ 0,80 por m²
+    "Flávio": 1.0,  # R$ 0,80 por m²
 }
 
 # Função para carregar os projetos do arquivo CSV
