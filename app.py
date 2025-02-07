@@ -113,7 +113,7 @@ def login(email, senha):
 
 # Tela de Login
 def login_screen():
-    # st.title("🔐 Login - VRZ Gestão Financeira")
+    st.title("🔐 Login - VRZ Gestão Financeira")
     st.markdown("Por favor, insira suas credenciais para acessar o sistema.")
 
     # Formulário de login
