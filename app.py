@@ -1,9 +1,24 @@
+import os
+import ssl
+import time
+from datetime import datetime, timedelta
+from random import uniform
+
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.express as px
-import os
+import plotly.graph_objects as go
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2 import service_account
+import streamlit.components.v1 as components
+import json
+import locale
+import base64
+import io
+import uuid
 from dateutil.relativedelta import relativedelta
-from datetime import datetime
 
 ########################################## CONFIGURAÇÃO ##########################################
 
@@ -15,7 +30,7 @@ st.set_page_config(
 )
 
 # Estilo personalizado
-def add_custom_css():
+def local_css():
     st.markdown("""
         <style>
             [data-testid="stSidebar"] {
@@ -49,59 +64,253 @@ def add_custom_css():
         </style>
     """, unsafe_allow_html=True)
 
-add_custom_css()
+local_css()
 
 ########################################## CREDENCIAIS ##########################################
 
 # Carrega credenciais dos Secrets
 USER_CREDENTIALS = {
-    st.secrets["USER_EMAIL"]: st.secrets["USER_PASSWORD"],
-    st.secrets["ADMIN_EMAIL"]: st.secrets["ADMIN_PASSWORD"],
+    "contato@vrzengenharia.com.br": "123",
+    "20242025": "123",
+}
+
+SHEET_ID = "1E72Z_HBydw_IxM143IAFlrfhqrxhnOfBMxZGjfjJj5o"
+SHEET_GIDS = {
+    "Receitas": "0",
+    "Despesas": "2095402559",
+    "Projetos": "1967040877",
+    "Categorias_Receitas": "70356418",
+    "Fornecedor_Despesas": "62015063"
+}
+
+COLUNAS_ESPERADAS = {
+    "Receitas": ["DataRecebimento", "Descrição", "Projeto", "Categoria", "ValorTotal", "FormaPagamento", "NF"],
+    "Despesas": ["DataPagamento", "Descrição", "Categoria", "ValorTotal", "Parcelas", "FormaPagamento", "Responsável", "Fornecedor", "Projeto", "NF"],
+    "Projetos": ["Projeto", "Cliente", "Localizacao", "Placa", "Post", "DataInicio", "DataFinal", "Contrato", "Status", "Briefing", "Arquiteto", "Tipo", "Pacote", "m2", "Parcelas", "ValorTotal", "ResponsávelElétrico", "ResponsávelHidráulico", "ResponsávelModelagem", "ResponsávelDetalhamento"],
+    "Categorias_Receitas": ["Data", "Solicitante", "Biologico", "Quimico", "Observacoes", "Status"],
+    "Fornecedor_Despesas": ["Data", "Biologico", "Quimico", "Tempo", "Placa1", "Placa2", "Placa3", "MédiaPlacas", "Diluicao", "ConcObtida", "Dose", "ConcAtivo", "VolumeCalda", "ConcEsperada", "Razao", "Resultado"]
 }
 
 ########################################## DADOS ##########################################
 
-# Caminho dos arquivos CSV
-RECEITAS_PATH = "dados/receitas.csv"
-DESPESAS_PATH = "dados/despesas.csv"
-PROJETOS_PATH = "dados/projetos.csv"
-CATEGORIAS_RECEITAS_PATH = "dados/categorias_receita.csv"
-FORNECEDOR_DESPESAS_PATH = "dados/fornecedor_despesa.csv"
+# Função para conectar ao Google Sheets
+def conectar_sheets():
+    try:
+        # Desabilitar verificação SSL temporariamente para contornar problemas de certificado
+        ssl._create_default_https_context = ssl._create_unverified_context
+        
+        # Escopo para acesso ao Google Sheets
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        
+        # Carregar credenciais do arquivo secrets.toml
+        try:
+            creds_info = st.secrets["gcp_service_account"]
+            creds_dict = {
+                "type": creds_info["type"],
+                "project_id": creds_info["project_id"],
+                "private_key_id": creds_info["private_key_id"],
+                "private_key": creds_info["private_key"].replace("\\n", "\n"),
+                "client_email": creds_info["client_email"],
+                "client_id": creds_info["client_id"],
+                "auth_uri": creds_info["auth_uri"],
+                "token_uri": creds_info["token_uri"],
+                "auth_provider_x509_cert_url": creds_info["auth_provider_x509_cert_url"],
+                "client_x509_cert_url": creds_info["client_x509_cert_url"]
+            }
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+        except Exception as e:
+            st.error(f"Erro ao carregar credenciais: {e}")
+            return None
+        
+        # Conectar ao Google Sheets
+        client = gspread.authorize(creds)
+        
+        # Abrir a planilha pelo ID
+        try:
+            spreadsheet = client.open_by_key(st.secrets["sheet_id"])
+            return spreadsheet
+        except Exception as e:
+            st.error(f"Erro ao abrir planilha: {e}")
+            return None
+    except Exception as e:
+        st.error(f"Erro ao conectar ao Google Sheets: {e}")
+        return None
 
-# Função para carregar dados
-def carregar_dados(caminho, colunas):
-    if os.path.exists(caminho):
-        return pd.read_csv(caminho)
-    else:
-        return pd.DataFrame(columns=colunas)
+# Função para carregar dados do Google Sheets
+def carregar_dados_sheets(sheet_name):
+    try:
+        # Verificar se já temos os dados em cache na sessão
+        if sheet_name.lower() in st.session_state.local_data and not st.session_state.local_data[sheet_name.lower()].empty:
+            return st.session_state.local_data[sheet_name.lower()]
+        
+        # Conectar ao Google Sheets
+        spreadsheet = conectar_sheets()
+        if spreadsheet is None:
+            return pd.DataFrame()
+        
+        # Abrir a aba específica
+        try:
+            worksheet = spreadsheet.worksheet(sheet_name)
+        except Exception as e:
+            st.error(f"Erro ao abrir aba {sheet_name}: {e}")
+            return pd.DataFrame()
+        
+        # Obter todos os dados
+        data = worksheet.get_all_records()
+        
+        # Converter para DataFrame
+        df = pd.DataFrame(data)
+        
+        # Armazenar no cache da sessão
+        st.session_state.local_data[sheet_name.lower()] = df
+        
+        return df
+    except Exception as e:
+        st.error(f"Erro ao carregar dados de {sheet_name}: {e}")
+        return pd.DataFrame()
 
-# Carrega os dados iniciais
-df_receitas = carregar_dados(RECEITAS_PATH, ["DataRecebimento", "Descrição", "Projeto", "Categoria", "ValorTotal", "FormaPagamento", "NF"])
-df_despesas = carregar_dados(DESPESAS_PATH, ["DataPagamento", "Descrição", "Categoria", "ValorTotal", "Parcelas", "FormaPagamento", "Responsável", "Fornecedor", "Projeto", "NF"])
-df_projetos = carregar_dados(PROJETOS_PATH, ["Projeto", "Cliente", "Localizacao", "Placa", "Post", "DataInicio", "DataFinal", "Contrato", "Status", "Briefing", "Arquiteto", "Tipo", "Pacote", "m2", "Parcelas", "ValorTotal", "ResponsávelElétrico", "ResponsávelHidráulico", "ResponsávelModelagem", "ResponsávelDetalhamento"]).sort_values("Projeto")
+# Função para salvar dados no Google Sheets
+def salvar_dados_sheets(df, sheet_name):
+    try:
+        # Conectar ao Google Sheets
+        spreadsheet = conectar_sheets()
+        if spreadsheet is None:
+            return False
+        
+        # Abrir a aba específica
+        try:
+            worksheet = spreadsheet.worksheet(sheet_name)
+        except Exception as e:
+            st.error(f"Erro ao abrir aba {sheet_name}: {e}")
+            return False
+        
+        # Limpar a planilha
+        worksheet.clear()
+        
+        # Adicionar cabeçalhos
+        headers = df.columns.tolist()
+        worksheet.append_row(headers)
+        
+        # Adicionar dados
+        for _, row in df.iterrows():
+            worksheet.append_row(row.tolist())
+        
+        # Atualizar o cache da sessão
+        st.session_state.local_data[sheet_name.lower()] = df
+        
+        return True
+    except Exception as e:
+        st.error(f"Erro ao salvar dados em {sheet_name}: {e}")
+        return False
 
-# Converter colunas de data explicitamente
-df_receitas["DataRecebimento"] = pd.to_datetime(df_receitas["DataRecebimento"], dayfirst=True, errors="coerce")
-df_despesas["DataPagamento"] = pd.to_datetime(df_despesas["DataPagamento"], dayfirst=True, errors="coerce")
-df_projetos["DataInicio"] = pd.to_datetime(df_projetos["DataInicio"], dayfirst=True, errors="coerce")
-df_projetos["DataFinal"] = pd.to_datetime(df_projetos["DataFinal"], dayfirst=True, errors="coerce")
-
-# Carrega as categorias de receitas e despesas
-if os.path.exists(CATEGORIAS_RECEITAS_PATH):
-    df_categorias_receitas = pd.read_csv(CATEGORIAS_RECEITAS_PATH)
-else:
-    df_categorias_receitas = pd.DataFrame({"Categoria": ["Pró-Labore", "Investimentos", "Freelance", "Outros"]})  # Categorias padrão
-    df_categorias_receitas.to_csv(CATEGORIAS_RECEITAS_PATH, index=False)
-
-if os.path.exists(FORNECEDOR_DESPESAS_PATH):
-    df_fornecedor_despesas = pd.read_csv(FORNECEDOR_DESPESAS_PATH).sort_values("Fornecedor")
-else:
-    df_fornecedor_despesas = pd.DataFrame({"Fornecedor": ["Outros"]})  # Categorias padrão
-    df_fornecedor_despesas.to_csv(FORNECEDOR_DESPESAS_PATH, index=False)
+# Função para adicionar uma linha ao Google Sheets
+def adicionar_linha_sheets(dados, sheet_name):
+    try:
+        # Conectar ao Google Sheets
+        spreadsheet = conectar_sheets()
+        if spreadsheet is None:
+            return False
+        
+        # Abrir a aba específica
+        try:
+            worksheet = spreadsheet.worksheet(sheet_name)
+        except Exception as e:
+            st.error(f"Erro ao abrir aba {sheet_name}: {e}")
+            return False
+        
+        # Verificar se a planilha está vazia
+        try:
+            headers = worksheet.row_values(1)
+            if not headers:
+                # Se estiver vazia, adicionar cabeçalhos
+                headers = list(dados.keys())
+                worksheet.append_row(headers)
+        except:
+            # Se ocorrer erro, provavelmente a planilha está vazia
+            headers = list(dados.keys())
+            worksheet.append_row(headers)
+        
+        # Preparar os dados na ordem correta
+        row_data = [dados.get(header, "") for header in headers]
+        
+        # Adicionar a linha
+        worksheet.append_row(row_data)
+        
+        # Limpar o cache da sessão para forçar recarga
+        if sheet_name.lower() in st.session_state.local_data:
+            st.session_state.local_data[sheet_name.lower()] = pd.DataFrame()
+        
+        return True
+    except Exception as e:
+        st.error(f"Erro ao adicionar linha em {sheet_name}: {e}")
+        return False
 
 # Função para salvar categorias
-def salvar_categorias(df, caminho):
-    df.to_csv(caminho, index=False)
+def salvar_categorias(df, sheet_name):
+    return salvar_dados_sheets(df, sheet_name)
+
+# Inicialização dos dados locais
+if 'local_data' not in st.session_state:
+    st.session_state.local_data = {
+        'receitas': pd.DataFrame(),
+        'despesas': pd.DataFrame(),
+        'projetos': pd.DataFrame(),
+        'categorias_receitas': pd.DataFrame(),
+        'fornecedor_despesas': pd.DataFrame()
+    }
+
+# Carrega os dados iniciais
+if 'receitas' in st.session_state.local_data and not st.session_state.local_data['receitas'].empty:
+    df_receitas = st.session_state.local_data['receitas']
+else:
+    df_receitas = carregar_dados_sheets("Receitas")
+    st.session_state.local_data['receitas'] = df_receitas
+
+if 'despesas' in st.session_state.local_data and not st.session_state.local_data['despesas'].empty:
+    df_despesas = st.session_state.local_data['despesas']
+else:
+    df_despesas = carregar_dados_sheets("Despesas")
+    st.session_state.local_data['despesas'] = df_despesas
+
+if 'projetos' in st.session_state.local_data and not st.session_state.local_data['projetos'].empty:
+    df_projetos = st.session_state.local_data['projetos']
+else:
+    df_projetos = carregar_dados_sheets("Projetos")
+    st.session_state.local_data['projetos'] = df_projetos
+
+# Ordenar projetos por nome
+if not df_projetos.empty and "Projeto" in df_projetos.columns:
+    df_projetos = df_projetos.sort_values("Projeto")
+
+# Converter colunas de data explicitamente
+if not df_receitas.empty and "DataRecebimento" in df_receitas.columns:
+    df_receitas["DataRecebimento"] = pd.to_datetime(df_receitas["DataRecebimento"], dayfirst=True, errors="coerce")
+if not df_despesas.empty and "DataPagamento" in df_despesas.columns:
+    df_despesas["DataPagamento"] = pd.to_datetime(df_despesas["DataPagamento"], dayfirst=True, errors="coerce")
+if not df_projetos.empty:
+    if "DataInicio" in df_projetos.columns:
+        df_projetos["DataInicio"] = pd.to_datetime(df_projetos["DataInicio"], dayfirst=True, errors="coerce")
+    if "DataFinal" in df_projetos.columns:
+        df_projetos["DataFinal"] = pd.to_datetime(df_projetos["DataFinal"], dayfirst=True, errors="coerce")
+
+# Carrega as categorias de receitas e despesas
+if 'categorias_receitas' in st.session_state.local_data and not st.session_state.local_data['categorias_receitas'].empty:
+    df_categorias_receitas = st.session_state.local_data['categorias_receitas']
+else:
+    df_categorias_receitas = carregar_dados_sheets("Categorias_Receitas")
+    if df_categorias_receitas.empty:
+        df_categorias_receitas = pd.DataFrame({"Categoria": ["Pró-Labore", "Investimentos", "Freelance", "Outros"]})
+        salvar_dados_sheets(df_categorias_receitas, "Categorias_Receitas")
+    st.session_state.local_data['categorias_receitas'] = df_categorias_receitas
+
+if 'fornecedor_despesas' in st.session_state.local_data and not st.session_state.local_data['fornecedor_despesas'].empty:
+    df_fornecedor_despesas = st.session_state.local_data['fornecedor_despesas']
+else:
+    df_fornecedor_despesas = carregar_dados_sheets("Fornecedor_Despesas")
+    if df_fornecedor_despesas.empty:
+        df_fornecedor_despesas = pd.DataFrame({"Fornecedor": ["Outros"]})
+        salvar_dados_sheets(df_fornecedor_despesas, "Fornecedor_Despesas")
+    st.session_state.local_data['fornecedor_despesas'] = df_fornecedor_despesas
 
 ########################################## LOGIN ##########################################
 
@@ -133,134 +342,169 @@ def login_screen():
 ########################################## TRANSAÇÕES ##########################################
 
 # Função para salvar dados
-def salvar_dados(df, caminho):
-    df.to_csv(caminho, index=False)
+def salvar_dados(df, sheet_name):
+    return salvar_dados_sheets(df, sheet_name)
 
 # Tela de Registrar Receita
 def registrar_receita():
-    global df_receitas, df_categorias_receitas
-    st.title("💸 Registrar Receita")
-
-    with st.form("form_receita"):
-        DataRecebimento = st.date_input("Data de Recebimento")
-        Descrição = st.text_input("Descrição")
-
-        projetos = ["-"] + list(df_projetos["Projeto"].unique()) if not df_projetos.empty else ["-"]
-        Projeto = st.selectbox("Projeto", projetos)
-
-        Categoria = st.selectbox("Categoria", df_categorias_receitas["Categoria"].unique())
-        ValorTotal = st.number_input("Valor", min_value=0.0, step=1.0, format="%.2f")
-        FormaPagamento = st.selectbox("Forma de Pagamento", ["Pix", "TED", "Dinheiro"])
-        NF = st.selectbox("Nota Fiscal", ["Sim", "Não"])
-        submit = st.form_submit_button("Salvar Receita")
-
-    if submit:
-        nova_receita = pd.DataFrame({
-            "DataRecebimento": [DataRecebimento],
-            "Descrição": [Descrição],
-            "Projeto": [Projeto],
-            "Categoria": [Categoria],
-            "ValorTotal": [ValorTotal],
-            "FormaPagamento": [FormaPagamento],
-            "NF": [NF]
-        })
-        df_receitas = pd.concat([df_receitas, nova_receita], ignore_index=True)
-        df_receitas.to_csv(RECEITAS_PATH, index=False)
-        st.success("Receita registrada com sucesso!")
-
-    # Campo para adicionar nova categoria de receita
-    nova_categoria = st.text_input("Nova Categoria")
-    if st.button("Adicionar"):
-        if nova_categoria and nova_categoria not in df_categorias_receitas["Categoria"].values:
-            nova_categoria_df = pd.DataFrame({"Categoria": [nova_categoria]})
-            df_categorias_receitas = pd.concat([df_categorias_receitas, nova_categoria_df], ignore_index=True)
-            salvar_categorias(df_categorias_receitas, CATEGORIAS_RECEITAS_PATH)
-            st.success(f"Categoria '{nova_categoria}' adicionada com sucesso!")
-        else:
-            st.warning("Categoria já existe ou está vazia.")
+    global df_receitas  # Declara df_receitas como global
+    
+    st.subheader("📥 Registrar Receita")
+    
+    # Formulário para adicionar nova receita
+    with st.form("nova_receita"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            data_recebimento = st.date_input("Data de Recebimento", datetime.now())
+            descricao = st.text_input("Descrição")
+            categoria = st.selectbox("Categoria", df_categorias_receitas["Categoria"])
+            
+        with col2:
+            valor = st.number_input("Valor (R$)", min_value=0.0, format="%.2f")
+            forma_pagamento = st.selectbox("Forma de Pagamento", ["Pix", "Transferência", "Dinheiro", "Cheque", "Cartão de Crédito", "Outros"])
+            projeto = st.selectbox("Projeto", [""] + list(df_projetos["Projeto"]) if not df_projetos.empty else [""])
+            
+        # Botão para adicionar nova categoria
+        nova_categoria = st.text_input("Adicionar Nova Categoria")
+        if st.form_submit_button("Adicionar Categoria"):
+            if nova_categoria and nova_categoria not in df_categorias_receitas["Categoria"].values:
+                nova_categoria_df = pd.DataFrame({"Categoria": [nova_categoria]})
+                df_categorias_receitas = pd.concat([df_categorias_receitas, nova_categoria_df], ignore_index=True)
+                salvar_categorias(df_categorias_receitas, "Categorias_Receitas")
+                st.success(f"Categoria '{nova_categoria}' adicionada com sucesso!")
+            else:
+                st.warning("Categoria já existe ou está vazia.")
+            
+        # Botão para submeter o formulário
+        submitted = st.form_submit_button("Registrar Receita")
+        
+        if submitted:
+            # Cria um dicionário com os dados da nova receita
+            nova_receita = {
+                "DataRecebimento": data_recebimento.strftime("%d/%m/%Y"),
+                "Descrição": descricao,
+                "Categoria": categoria,
+                "ValorTotal": valor,
+                "FormaPagamento": forma_pagamento,
+                "Projeto": projeto
+            }
+            
+            # Adiciona a nova receita ao Google Sheets
+            if adicionar_linha_sheets(nova_receita, "Receitas"):
+                st.success("Receita registrada com sucesso!")
+                # Limpar o cache para forçar recarregar os dados
+                st.session_state.local_data["receitas"] = pd.DataFrame()
+            else:
+                st.error("Erro ao registrar receita.")
 
 # Tela de Registrar Despesa
 def registrar_despesa():
-    global df_despesas, df_fornecedor_despesas
-    st.title("📤 Registrar Despesa")
-
-    with st.form("form_despesa"):
-        DataPagamento = st.date_input("Data de Pagamento")
-        Descricao = st.text_input("Descrição")
-        Categoria = st.selectbox("Categoria", ["Pró-Labore", "Aluguel", "Alimentação", "Outro"])
-        ValorTotal = st.number_input("Valor", min_value=0.0, step=1.0, format="%.2f")
-        Parcelas = st.number_input("Parcelas", min_value=1, step=1)
-        FormaPagamento = st.selectbox("Forma de Pagamento", ["Cartão de Crédito", "Pix", "TED", "Dinheiro"])
-        Responsável = st.selectbox("Responsável", ["Bruno", "Victor"])
-        Fornecedor = st.selectbox("Fornecedor", df_fornecedor_despesas["Fornecedor"].unique())
-        Projeto = st.selectbox("Projeto", df_projetos["Projeto"].unique())
-        NF = st.selectbox("Nota Fiscal", ["Sim", "Não"])
-        submit = st.form_submit_button("Salvar Despesa")
-
-    if submit:
-        # Calcula o valor de cada parcela
-        valor_parcela = round(ValorTotal / Parcelas, 2)
-
-        # Lista para armazenar as parcelas
-        parcelas = []
-
-        # Gera as parcelas
-        for i in range(Parcelas):
-            data_parcela = DataPagamento + relativedelta(months=+i)  # Incrementa a data em 'i' meses
-            parcela_info = {
-                "DataPagamento": data_parcela,
-                "Descrição": Descricao,
-                "Categoria": Categoria,
-                "ValorTotal": valor_parcela,
-                "Parcelas": f"{i + 1}/{Parcelas}",  # Identifica a parcela atual
-                "FormaPagamento": FormaPagamento,
-                "Responsável": Responsável,
-                "Fornecedor": Fornecedor,
-                "Projeto": Projeto,
-                "NF": NF
-            }
-            parcelas.append(parcela_info)
-
-        # Cria um DataFrame com as parcelas
-        df_parcelas = pd.DataFrame(parcelas)
-
-        # Adiciona as parcelas ao DataFrame de despesas
-        df_despesas = pd.concat([df_despesas, df_parcelas], ignore_index=True)
-
-        # Salva as despesas no arquivo CSV
-        df_despesas.to_csv(DESPESAS_PATH, index=False)
-
-        st.success(f"Despesa registrada com sucesso! {Parcelas} parcela(s) criada(s).")
-
-    # if submit:
-    #     nova_despesa = pd.DataFrame({
-    #         "DataPagamento": [DataPagamento],
-    #         "Descrição": [Descricao],
-    #         "Categoria": [Categoria],
-    #         "ValorTotal": [ValorTotal],
-    #         "Parcelas": [Parcelas],
-    #         "FormaPagamento": [FormaPagamento],
-    #         "Responsável": [Responsável],
-    #         "Fornecedor": [Fornecedor],
-    #         "Projeto": [Projeto],
-    #         "NF": [NF]
-    #     })
-    #     df_despesas = pd.concat([df_despesas, nova_despesa], ignore_index=True)
-    #     df_despesas.to_csv(DESPESAS_PATH, index=False)
-    #     st.success("Despesa registrada com sucesso!")
-
-    # Campo para adicionar nova categoria de despesa
-    novo_fornecedor = st.text_input("Novo Fornecedor")
-    if st.button("Adicionar"):
-        if novo_fornecedor and novo_fornecedor not in df_fornecedor_despesas["Fornecedor"].values:
-            novo_fornecedor_df = pd.DataFrame({"Fornecedor": [novo_fornecedor]})
-            df_fornecedor_despesas = pd.concat([df_fornecedor_despesas, novo_fornecedor_df], ignore_index=True)
-            salvar_categorias(df_fornecedor_despesas, FORNECEDOR_DESPESAS_PATH)
-            st.success(f"Fornecedor '{novo_fornecedor}' adicionado com sucesso!")
-        else:
-            st.warning("Fornecedor já existe ou está vazio.")
+    global df_despesas  # Declara df_despesas como global
+    
+    st.subheader("📤 Registrar Despesa")
+    
+    # Formulário para adicionar nova despesa
+    with st.form("nova_despesa"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            data_pagamento = st.date_input("Data de Pagamento", datetime.now())
+            descricao = st.text_input("Descrição")
+            categoria = st.selectbox("Categoria", ["Alimentação", "Transporte", "Moradia", "Saúde", "Educação", "Lazer", "Outros"])
+            fornecedor = st.selectbox("Fornecedor", df_fornecedor_despesas["Fornecedor"])
+            
+        with col2:
+            valor = st.number_input("Valor (R$)", min_value=0.0, format="%.2f")
+            parcelas = st.number_input("Parcelas", min_value=1, step=1)
+            forma_pagamento = st.selectbox("Forma de Pagamento", ["Pix", "Transferência", "Dinheiro", "Cheque", "Cartão de Crédito", "Outros"])
+            projeto = st.selectbox("Projeto", [""] + list(df_projetos["Projeto"]) if not df_projetos.empty else [""])
+            responsavel = st.selectbox("Responsável", ["Bruno", "Victor"])
+            nf = st.checkbox("Nota Fiscal")
+            
+        # Botão para adicionar novo fornecedor
+        novo_fornecedor = st.text_input("Adicionar Novo Fornecedor")
+        if st.form_submit_button("Adicionar Fornecedor"):
+            if novo_fornecedor and novo_fornecedor not in df_fornecedor_despesas["Fornecedor"].values:
+                novo_fornecedor_df = pd.DataFrame({"Fornecedor": [novo_fornecedor]})
+                df_fornecedor_despesas = pd.concat([df_fornecedor_despesas, novo_fornecedor_df], ignore_index=True)
+                salvar_categorias(df_fornecedor_despesas, "Fornecedor_Despesas")
+                st.success(f"Fornecedor '{novo_fornecedor}' adicionado com sucesso!")
+            else:
+                st.warning("Fornecedor já existe ou está vazio.")
+            
+        # Botão para submeter o formulário
+        submitted = st.form_submit_button("Registrar Despesa")
+        
+        if submitted:
+            # Calcula o valor de cada parcela
+            valor_parcela = round(valor / parcelas, 2)
+            
+            # Lista para armazenar as parcelas
+            lista_parcelas = []
+            
+            # Gera as parcelas
+            for i in range(parcelas):
+                data_parcela = data_pagamento + relativedelta(months=+i)  # Incrementa a data em 'i' meses
+                parcela_info = {
+                    "DataPagamento": data_parcela.strftime("%d/%m/%Y"),
+                    "Descrição": descricao,
+                    "Categoria": categoria,
+                    "ValorTotal": valor_parcela,
+                    "Parcelas": f"{i + 1}/{parcelas}",  # Identifica a parcela atual
+                    "FormaPagamento": forma_pagamento,
+                    "Responsável": responsavel,
+                    "Fornecedor": fornecedor,
+                    "Projeto": projeto,
+                    "NF": "Sim" if nf else "Não"
+                }
+                lista_parcelas.append(parcela_info)
+            
+            # Adiciona as parcelas ao Google Sheets
+            sucesso = True
+            for parcela in lista_parcelas:
+                if not adicionar_linha_sheets(parcela, "Despesas"):
+                    sucesso = False
+                    break
+            
+            if sucesso:
+                st.success(f"Despesa registrada com sucesso! {parcelas} parcela(s) criada(s).")
+                # Limpar o cache para forçar recarregar os dados
+                st.session_state.local_data["despesas"] = pd.DataFrame()
+            else:
+                st.error("Erro ao registrar despesa.")
 
 ########################################## PROJETOS ##########################################
+
+# Função para carregar os projetos
+def carregar_projetos():
+    try:
+        # Verificar se já temos os dados em cache na sessão
+        if 'projetos' in st.session_state.local_data and not st.session_state.local_data['projetos'].empty:
+            return st.session_state.local_data['projetos']
+        else:
+            df_projetos = carregar_dados_sheets("Projetos")
+            if not df_projetos.empty:
+                st.session_state.local_data['projetos'] = df_projetos
+            return df_projetos
+    except Exception as e:
+        st.error(f"Erro ao carregar projetos: {e}")
+        return pd.DataFrame()
+
+# Função para salvar os projetos
+def salvar_projetos(df):
+    try:
+        resultado = salvar_dados_sheets(df, "Projetos")
+        if resultado:
+            st.session_state.local_data['projetos'] = df
+            st.success("Alterações salvas com sucesso!")
+            return True
+        else:
+            st.error("Erro ao salvar os projetos.")
+            return False
+    except Exception as e:
+        st.error(f"Erro ao salvar projetos: {e}")
+        return False
 
 # Tela de Registrar Projeto
 def registrar_projeto():
@@ -314,7 +558,7 @@ def registrar_projeto():
             "ResponsávelDetalhamento": [ResponsávelDetalhamento]
         })
         df_projetos = pd.concat([df_projetos, novo_projeto], ignore_index=True)
-        salvar_dados(df_projetos, PROJETOS_PATH)
+        salvar_projetos(df_projetos)
         st.success("Projeto registrado com sucesso!")
 
 def registrar():
@@ -421,58 +665,6 @@ def dashboard():
     st.sidebar.markdown("### Filtro por Arquiteto")
     arquitetos = df_projetos["Arquiteto"].unique()
     arquiteto_selecionado = st.sidebar.multiselect("Arquiteto", arquitetos)
-
-    # Aplicar filtros aos datasets
-    df_receitas_filtrado = df_receitas.copy()
-    df_despesas_filtrado = df_despesas.copy()
-    df_projetos_filtrado = df_projetos.copy()
-
-    # Filtro por período
-    # df_receitas_filtrado = df_receitas_filtrado[
-    #     (df_receitas_filtrado["DataRecebimento"] >= pd.to_datetime(data_inicio)) &
-    #     (df_receitas_filtrado["DataRecebimento"] <= pd.to_datetime(data_fim))
-    # ]
-    # df_despesas_filtrado = df_despesas_filtrado[
-    #     (df_despesas_filtrado["DataPagamento"] >= pd.to_datetime(data_inicio)) &
-    #     (df_despesas_filtrado["DataPagamento"] <= pd.to_datetime(data_fim))
-    # ]
-    # df_projetos_filtrado = df_projetos_filtrado[
-    #     (df_projetos_filtrado["DataInicio"] >= pd.to_datetime(data_inicio)) &
-    #     (df_projetos_filtrado["DataFinal"] <= pd.to_datetime(data_fim))
-    # ]
-
-    # Filtro por categoria
-    if categoria_selecionada:
-        df_receitas_filtrado = df_receitas_filtrado[df_receitas_filtrado["Categoria"].isin(categoria_selecionada)]
-        df_despesas_filtrado = df_despesas_filtrado[df_despesas_filtrado["Categoria"].isin(categoria_selecionada)]
-
-    # Filtro por projeto
-    if projeto_selecionado:
-        df_receitas_filtrado = df_receitas_filtrado[df_receitas_filtrado["Projeto"].isin(projeto_selecionado)]
-        df_despesas_filtrado = df_despesas_filtrado[df_despesas_filtrado["Projeto"].isin(projeto_selecionado)]
-        df_projetos_filtrado = df_projetos_filtrado[df_projetos_filtrado["Projeto"].isin(projeto_selecionado)]
-
-    # Filtro por responsável
-    if responsavel_selecionado:
-        df_despesas_filtrado = df_despesas_filtrado[df_despesas_filtrado["Responsável"].isin(responsavel_selecionado)]
-        df_projetos_filtrado = df_projetos_filtrado[
-            (df_projetos_filtrado["ResponsávelElétrico"].isin(responsavel_selecionado)) |
-            (df_projetos_filtrado["ResponsávelHidráulico"].isin(responsavel_selecionado)) |
-            (df_projetos_filtrado["ResponsávelModelagem"].isin(responsavel_selecionado)) |
-            (df_projetos_filtrado["ResponsávelDetalhamento"].isin(responsavel_selecionado))
-        ]
-
-    # Filtro por fornecedor
-    if fornecedor_selecionado:
-        df_despesas_filtrado = df_despesas_filtrado[df_despesas_filtrado["Fornecedor"].isin(fornecedor_selecionado)]
-
-    # Filtro por status
-    if status_selecionado:
-        df_projetos_filtrado = df_projetos_filtrado[df_projetos_filtrado["Status"].isin(status_selecionado)]
-
-    # Filtro por arquiteto
-    if arquiteto_selecionado:
-        df_projetos_filtrado = df_projetos_filtrado[df_projetos_filtrado["Arquiteto"].isin(arquiteto_selecionado)]
 
     st.divider()
 
@@ -841,16 +1033,23 @@ def dashboard():
 # Função para carregar os dados de receitas e despesas
 def carregar_dados():
     try:
-        df_receitas = pd.read_csv("receitas.csv")  # Substitua pelo caminho do seu arquivo de receitas
-    except FileNotFoundError:
-        df_receitas = pd.DataFrame()
-
-    try:
-        df_despesas = pd.read_csv("despesas.csv")  # Substitua pelo caminho do seu arquivo de despesas
-    except FileNotFoundError:
-        df_despesas = pd.DataFrame()
-
-    return df_receitas, df_despesas
+        # Verificar se já temos os dados em cache na sessão
+        if 'receitas' in st.session_state.local_data and not st.session_state.local_data['receitas'].empty:
+            df_receitas = st.session_state.local_data['receitas']
+        else:
+            df_receitas = carregar_dados_sheets("Receitas")
+            st.session_state.local_data['receitas'] = df_receitas
+        
+        if 'despesas' in st.session_state.local_data and not st.session_state.local_data['despesas'].empty:
+            df_despesas = st.session_state.local_data['despesas']
+        else:
+            df_despesas = carregar_dados_sheets("Despesas")
+            st.session_state.local_data['despesas'] = df_despesas
+        
+        return df_receitas, df_despesas
+    except Exception as e:
+        st.error(f"Erro ao carregar dados: {e}")
+        return pd.DataFrame(), pd.DataFrame()
 
 # Função para filtrar os dados por período
 def filtrar_por_periodo(df, mes, ano):
@@ -883,8 +1082,8 @@ def relatorios():
         st.dataframe(df_despesas_filtrado)
 
         # Cálculos financeiros
-        total_receitas = df_receitas_filtrado["Valor"].sum()
-        total_despesas = df_despesas_filtrado["Valor"].sum()
+        total_receitas = df_receitas_filtrado["ValorTotal"].sum()
+        total_despesas = df_despesas_filtrado["ValorTotal"].sum()
         saldo_final = total_receitas - total_despesas
 
         st.write("### Resumo Financeiro")
@@ -897,38 +1096,28 @@ def relatorios():
         col1, col2 = st.columns(2)
         with col1:
             if st.button("Exportar Receitas (CSV)"):
-                df_receitas_filtrado.to_csv("receitas_filtrado.csv", index=False)
-                st.success("Receitas exportadas com sucesso!")
+                csv = df_receitas_filtrado.to_csv(index=False)
+                b64 = base64.b64encode(csv.encode()).decode()
+                href = f'<a href="data:file/csv;base64,{b64}" download="receitas_filtrado.csv">Baixar arquivo CSV</a>'
+                st.markdown(href, unsafe_allow_html=True)
+                st.success("Arquivo de receitas pronto para download!")
         with col2:
             if st.button("Exportar Despesas (CSV)"):
-                df_despesas_filtrado.to_csv("despesas_filtrado.csv", index=False)
-                st.success("Despesas exportadas com sucesso!")
+                csv = df_despesas_filtrado.to_csv(index=False)
+                b64 = base64.b64encode(csv.encode()).decode()
+                href = f'<a href="data:file/csv;base64,{b64}" download="despesas_filtrado.csv">Baixar arquivo CSV</a>'
+                st.markdown(href, unsafe_allow_html=True)
+                st.success("Arquivo de despesas pronto para download!")
     else:
         st.info("Nenhuma transação registrada para o período selecionado.")
 
 ########################################## PROJETOS ##########################################
 
-# Função para carregar os projetos do arquivo CSV
-def carregar_projetos():
-    try:
-        return pd.read_csv(PROJETOS_PATH)
-    except FileNotFoundError:
-        st.error("Arquivo CSV não encontrado.")
-        return pd.DataFrame()
-
-# Função para salvar os projetos no arquivo CSV
-def salvar_projetos(df):
-    try:
-        df.to_csv(PROJETOS_PATH, index=False)
-        st.success("Alterações salvas com sucesso!")
-    except Exception as e:
-        st.error(f"Erro ao salvar o arquivo CSV: {e}")
-
 # Função para exibir os projetos como cards clicáveis
 def projetos():
     st.title("📂 Projetos")
 
-    # Carrega os projetos do arquivo CSV
+    # Carrega os projetos do Google Sheets
     df_projetos = carregar_projetos()
     
     filtro_dropdown = st.selectbox(
@@ -1093,7 +1282,7 @@ def projetos():
                             "ResponsávelDetalhamento": ResponsávelDetalhamento,
                         }
 
-                        salvar_projetos(df_projetos)  # Salva no CSV
+                        salvar_projetos(df_projetos)  # Salva no Google Sheets
                         st.session_state["projeto_selecionado"] = df_projetos.loc[index].to_dict()
                         st.session_state["editando"] = False
                         st.rerun()
@@ -1110,14 +1299,6 @@ FUNCIONARIOS = {
     "Bia": 1.0,  # R$ 1,00 por m²
     "Flávio": 1.0,  # R$ 0,80 por m²
 }
-
-# Função para carregar os projetos do arquivo CSV
-def carregar_projetos():
-    try:
-        return pd.read_csv(PROJETOS_PATH)
-    except FileNotFoundError:
-        st.error("Arquivo CSV não encontrado.")
-        return pd.DataFrame()
 
 # Função para calcular a produtividade dos funcionários
 def calcular_produtividade(df_projetos, mes, ano):
@@ -1187,7 +1368,7 @@ def funcionarios():
 ########################################## PÁGINA PRINCIPAL ##########################################
 
 def main_app():
-    st.sidebar.image("imagens/VRZ-LOGO-44.png")
+    # st.sidebar.image("imagens/VRZ-LOGO-44.png")
     st.sidebar.title("Menu")
     menu_option = st.sidebar.radio(
         "Selecione a funcionalidade:",
