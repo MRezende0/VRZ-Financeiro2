@@ -917,13 +917,352 @@ def registrar_projeto():
         salvar_projetos(df_projetos)
         st.success("Projeto registrado com sucesso!")
 
+# Função para registrar cliente
+def registrar_cliente():
+    st.subheader("👤 Registrar Cliente")
+    
+    # Carregar dados existentes
+    df_clientes = carregar_dados_sob_demanda("Clientes")
+    
+    # Verificar se o DataFrame está vazio ou não existe
+    if df_clientes.empty:
+        df_clientes = pd.DataFrame(columns=["Nome", "CPF", "Endereço", "Contato", "TipoNF"])
+    
+    # Formulário para adicionar novo cliente
+    with st.form("novo_cliente"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            nome = st.text_input("Nome")
+            cpf = st.text_input("CPF")
+            endereco = st.text_input("Endereço")
+        
+        with col2:
+            contato = st.text_input("Contato")
+            tipo_nf = st.selectbox("Tipo de Nota Fiscal", ["Pessoa Física", "Pessoa Jurídica", "Não Aplicável"])
+        
+        submit_cliente = st.form_submit_button("Salvar Cliente")
+        
+        if submit_cliente:
+            # Validar dados
+            if not nome:
+                st.error("O nome do cliente é obrigatório.")
+            else:
+                # Criar dicionário com os dados do novo cliente
+                novo_cliente = {
+                    "Nome": nome,
+                    "CPF": cpf,
+                    "Endereço": endereco,
+                    "Contato": contato,
+                    "TipoNF": tipo_nf
+                }
+                
+                # Adicionar ao Google Sheets
+                if adicionar_linha_sheets(novo_cliente, "Clientes"):
+                    st.success("Cliente registrado com sucesso!")
+                    # Limpar o cache para forçar recarregar os dados
+                    st.session_state.local_data["clientes"] = pd.DataFrame()
+                else:
+                    st.error("Erro ao registrar cliente.")
+    
+    # Exibir clientes existentes em uma tabela editável
+    st.subheader("Clientes Cadastrados")
+    
+    if not df_clientes.empty:
+        # Criar uma cópia editável do DataFrame
+        edited_df = st.data_editor(
+            df_clientes,
+            use_container_width=True,
+            num_rows="dynamic",
+            column_config={
+                "Nome": st.column_config.TextColumn("Nome", width="medium"),
+                "CPF": st.column_config.TextColumn("CPF", width="small"),
+                "Endereço": st.column_config.TextColumn("Endereço", width="large"),
+                "Contato": st.column_config.TextColumn("Contato", width="medium"),
+                "TipoNF": st.column_config.SelectboxColumn(
+                    "Tipo NF", 
+                    options=["Pessoa Física", "Pessoa Jurídica", "Não Aplicável"],
+                    width="medium"
+                )
+            },
+            hide_index=True
+        )
+        
+        # Verificar se houve alterações no DataFrame
+        if not edited_df.equals(df_clientes):
+            if st.button("Salvar Alterações"):
+                if salvar_dados_sheets(edited_df, "Clientes"):
+                    st.success("Alterações salvas com sucesso!")
+                    # Atualizar o cache
+                    st.session_state.local_data["clientes"] = edited_df
+                else:
+                    st.error("Erro ao salvar alterações.")
+    else:
+        st.info("Nenhum cliente cadastrado.")
+
+# Função para registrar funcionário
+def registrar_funcionario():
+    st.subheader("👷 Registrar Funcionário")
+    
+    # Carregar dados existentes
+    df_funcionarios = carregar_dados_sob_demanda("Funcionarios")
+    
+    # Verificar se o DataFrame está vazio ou não existe
+    if df_funcionarios.empty:
+        df_funcionarios = pd.DataFrame(columns=["Nome", "Cargo", "Admissão", "Salário", "Contato", "Endereço"])
+    
+    # Formulário para adicionar novo funcionário
+    with st.form("novo_funcionario"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            nome = st.text_input("Nome")
+            cargo = st.text_input("Cargo")
+            data_admissao = st.date_input("Data de Admissão", datetime.now())
+        
+        with col2:
+            salario = st.number_input("Salário (R$)", min_value=0.0, format="%.2f")
+            contato = st.text_input("Contato")
+            endereco = st.text_input("Endereço")
+        
+        submit_funcionario = st.form_submit_button("Salvar Funcionário")
+        
+        if submit_funcionario:
+            # Validar dados
+            if not nome:
+                st.error("O nome do funcionário é obrigatório.")
+            else:
+                # Criar dicionário com os dados do novo funcionário
+                novo_funcionario = {
+                    "Nome": nome,
+                    "Cargo": cargo,
+                    "Admissão": data_admissao.strftime("%d/%m/%Y"),
+                    "Salário": salario,
+                    "Contato": contato,
+                    "Endereço": endereco
+                }
+                
+                # Adicionar ao Google Sheets
+                if adicionar_linha_sheets(novo_funcionario, "Funcionarios"):
+                    st.success("Funcionário registrado com sucesso!")
+                    # Limpar o cache para forçar recarregar os dados
+                    st.session_state.local_data["funcionarios"] = pd.DataFrame()
+                else:
+                    st.error("Erro ao registrar funcionário.")
+    
+    # Exibir funcionários existentes em uma tabela editável
+    st.subheader("Funcionários Cadastrados")
+    
+    if not df_funcionarios.empty:
+        # Criar uma cópia editável do DataFrame
+        edited_df = st.data_editor(
+            df_funcionarios,
+            use_container_width=True,
+            num_rows="dynamic",
+            column_config={
+                "Nome": st.column_config.TextColumn("Nome", width="medium"),
+                "Cargo": st.column_config.TextColumn("Cargo", width="medium"),
+                "Admissão": st.column_config.TextColumn("Admissão", width="small"),
+                "Salário": st.column_config.NumberColumn("Salário", format="R$ %.2f", width="small"),
+                "Contato": st.column_config.TextColumn("Contato", width="medium"),
+                "Endereço": st.column_config.TextColumn("Endereço", width="large")
+            },
+            hide_index=True
+        )
+        
+        # Verificar se houve alterações no DataFrame
+        if not edited_df.equals(df_funcionarios):
+            if st.button("Salvar Alterações"):
+                if salvar_dados_sheets(edited_df, "Funcionarios"):
+                    st.success("Alterações salvas com sucesso!")
+                    # Atualizar o cache
+                    st.session_state.local_data["funcionarios"] = edited_df
+                else:
+                    st.error("Erro ao salvar alterações.")
+    else:
+        st.info("Nenhum funcionário cadastrado.")
+
+# Função para registrar categoria
+def registrar_categoria():
+    st.subheader("🏷️ Gerenciar Categorias")
+    
+    # Tabs para separar categorias de receitas e despesas
+    tab_receitas, tab_despesas = st.tabs(["Categorias de Receitas", "Categorias de Despesas"])
+    
+    with tab_receitas:
+        # Carregar categorias de receitas
+        df_categorias_receitas = carregar_dados_sob_demanda("Categorias_Receitas")
+        
+        # Verificar se o DataFrame está vazio ou não existe
+        if df_categorias_receitas.empty:
+            df_categorias_receitas = pd.DataFrame({"Categoria": ["Pró-Labore", "Investimentos", "Freelance", "Outros"]})
+        
+        # Formulário para adicionar nova categoria
+        with st.form("nova_categoria_receita"):
+            nova_categoria = st.text_input("Nova Categoria de Receita")
+            submit_categoria = st.form_submit_button("Adicionar Categoria")
+            
+            if submit_categoria:
+                if nova_categoria and nova_categoria not in df_categorias_receitas["Categoria"].values:
+                    nova_categoria_df = pd.DataFrame({"Categoria": [nova_categoria]})
+                    df_categorias_receitas = pd.concat([df_categorias_receitas, nova_categoria_df], ignore_index=True)
+                    
+                    if salvar_dados_sheets(df_categorias_receitas, "Categorias_Receitas"):
+                        st.success(f"Categoria '{nova_categoria}' adicionada com sucesso!")
+                        # Atualizar o cache
+                        st.session_state.local_data["categorias_receitas"] = df_categorias_receitas
+                    else:
+                        st.error("Erro ao adicionar categoria.")
+                else:
+                    st.warning("Categoria já existe ou está vazia.")
+        
+        # Exibir categorias existentes em uma tabela editável
+        st.subheader("Categorias de Receitas")
+        
+        edited_df_receitas = st.data_editor(
+            df_categorias_receitas,
+            use_container_width=True,
+            num_rows="dynamic",
+            hide_index=True
+        )
+        
+        # Verificar se houve alterações no DataFrame
+        if not edited_df_receitas.equals(df_categorias_receitas):
+            if st.button("Salvar Alterações (Receitas)"):
+                if salvar_dados_sheets(edited_df_receitas, "Categorias_Receitas"):
+                    st.success("Alterações salvas com sucesso!")
+                    # Atualizar o cache
+                    st.session_state.local_data["categorias_receitas"] = edited_df_receitas
+                else:
+                    st.error("Erro ao salvar alterações.")
+    
+    with tab_despesas:
+        # Carregar categorias de despesas
+        df_categorias_despesas = carregar_dados_sob_demanda("Categorias_Despesas")
+        
+        # Verificar se o DataFrame está vazio ou não existe
+        if df_categorias_despesas.empty:
+            df_categorias_despesas = pd.DataFrame({"Categoria": ["Aluguel", "Água", "Luz", "Internet", "Materiais", "Salários", "Impostos", "Outros"]})
+        
+        # Formulário para adicionar nova categoria
+        with st.form("nova_categoria_despesa"):
+            nova_categoria = st.text_input("Nova Categoria de Despesa")
+            submit_categoria = st.form_submit_button("Adicionar Categoria")
+            
+            if submit_categoria:
+                if nova_categoria and nova_categoria not in df_categorias_despesas["Categoria"].values:
+                    nova_categoria_df = pd.DataFrame({"Categoria": [nova_categoria]})
+                    df_categorias_despesas = pd.concat([df_categorias_despesas, nova_categoria_df], ignore_index=True)
+                    
+                    if salvar_dados_sheets(df_categorias_despesas, "Categorias_Despesas"):
+                        st.success(f"Categoria '{nova_categoria}' adicionada com sucesso!")
+                        # Atualizar o cache
+                        st.session_state.local_data["categorias_despesas"] = df_categorias_despesas
+                    else:
+                        st.error("Erro ao adicionar categoria.")
+                else:
+                    st.warning("Categoria já existe ou está vazia.")
+        
+        # Exibir categorias existentes em uma tabela editável
+        st.subheader("Categorias de Despesas")
+        
+        edited_df_despesas = st.data_editor(
+            df_categorias_despesas,
+            use_container_width=True,
+            num_rows="dynamic",
+            hide_index=True
+        )
+        
+        # Verificar se houve alterações no DataFrame
+        if not edited_df_despesas.equals(df_categorias_despesas):
+            if st.button("Salvar Alterações (Despesas)"):
+                if salvar_dados_sheets(edited_df_despesas, "Categorias_Despesas"):
+                    st.success("Alterações salvas com sucesso!")
+                    # Atualizar o cache
+                    st.session_state.local_data["categorias_despesas"] = edited_df_despesas
+                else:
+                    st.error("Erro ao salvar alterações.")
+
+# Função para registrar fornecedor
+def registrar_fornecedor():
+    st.subheader("🏢 Gerenciar Fornecedores")
+    
+    # Carregar fornecedores existentes
+    df_fornecedores = carregar_dados_sob_demanda("Fornecedor_Despesas")
+    
+    # Verificar se o DataFrame está vazio ou não existe
+    if df_fornecedores.empty:
+        df_fornecedores = pd.DataFrame({"Fornecedor": ["Outros"]})
+    
+    # Formulário para adicionar novo fornecedor
+    with st.form("novo_fornecedor"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            nome_fornecedor = st.text_input("Nome do Fornecedor")
+        
+        with col2:
+            categoria_fornecedor = st.selectbox("Categoria", ["Material", "Serviço", "Utilidades", "Outros"])
+        
+        submit_fornecedor = st.form_submit_button("Adicionar Fornecedor")
+        
+        if submit_fornecedor:
+            if nome_fornecedor and nome_fornecedor not in df_fornecedores["Fornecedor"].values:
+                # Verificar se precisamos adicionar a coluna Categoria
+                if "Categoria" not in df_fornecedores.columns:
+                    df_fornecedores["Categoria"] = "Outros"
+                
+                novo_fornecedor_df = pd.DataFrame({"Fornecedor": [nome_fornecedor], "Categoria": [categoria_fornecedor]})
+                df_fornecedores = pd.concat([df_fornecedores, novo_fornecedor_df], ignore_index=True)
+                
+                if salvar_dados_sheets(df_fornecedores, "Fornecedor_Despesas"):
+                    st.success(f"Fornecedor '{nome_fornecedor}' adicionado com sucesso!")
+                    # Atualizar o cache
+                    st.session_state.local_data["fornecedor_despesas"] = df_fornecedores
+                else:
+                    st.error("Erro ao adicionar fornecedor.")
+            else:
+                st.warning("Fornecedor já existe ou está vazio.")
+    
+    # Exibir fornecedores existentes em uma tabela editável
+    st.subheader("Fornecedores Cadastrados")
+    
+    # Adicionar coluna de categoria se não existir
+    if "Categoria" not in df_fornecedores.columns:
+        df_fornecedores["Categoria"] = "Outros"
+    
+    edited_df = st.data_editor(
+        df_fornecedores,
+        use_container_width=True,
+        num_rows="dynamic",
+        column_config={
+            "Fornecedor": st.column_config.TextColumn("Fornecedor", width="large"),
+            "Categoria": st.column_config.SelectboxColumn(
+                "Categoria", 
+                options=["Material", "Serviço", "Utilidades", "Outros"],
+                width="medium"
+            )
+        },
+        hide_index=True
+    )
+    
+    # Verificar se houve alterações no DataFrame
+    if not edited_df.equals(df_fornecedores):
+        if st.button("Salvar Alterações"):
+            if salvar_dados_sheets(edited_df, "Fornecedor_Despesas"):
+                st.success("Alterações salvas com sucesso!")
+                # Atualizar o cache
+                st.session_state.local_data["fornecedor_despesas"] = edited_df
+            else:
+                st.error("Erro ao salvar alterações.")
+
 def registrar():
     # st.title("📝 Registrar")
 
     # Seletor para escolher o tipo de registro
     tipo_registro = st.radio(
         "O que você deseja registrar?",
-        ("Receita", "Despesa", "Projeto")
+        ("Receita", "Despesa", "Projeto", "Cliente", "Funcionário", "Categoria", "Fornecedor")
     )
 
     if tipo_registro == "Receita":
@@ -932,6 +1271,14 @@ def registrar():
         registrar_despesa()
     elif tipo_registro == "Projeto":
         registrar_projeto()
+    elif tipo_registro == "Cliente":
+        registrar_cliente()
+    elif tipo_registro == "Funcionário":
+        registrar_funcionario()
+    elif tipo_registro == "Categoria":
+        registrar_categoria()
+    elif tipo_registro == "Fornecedor":
+        registrar_fornecedor()
 
 ########################################## DASHBOARD ##########################################
 
@@ -1593,7 +1940,6 @@ def projetos():
                     padding: 20px;
                     border-radius: 10px;
                     border: 1px solid #ddd;
-                    box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
                     text-align: left;
                     margin-top: 20px;">
                     <h3 style="text-align: center;">📄 Detalhes do Projeto</h3>
