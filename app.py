@@ -335,6 +335,219 @@ def carregar_dados_sheets(sheet_name, force_reload=False):
             return df
         return pd.DataFrame()
 
+# Função para salvar dados no Google Sheets
+def salvar_dados_sheets(df, sheet_name):
+    """
+    Salva um DataFrame no Google Sheets.
+    
+    Args:
+        df: DataFrame do pandas com os dados a serem salvos
+        sheet_name: Nome da planilha onde os dados serão salvos
+    
+    Returns:
+        bool: True se os dados foram salvos com sucesso, False caso contrário
+    """
+    try:
+        # Conectar ao Google Sheets
+        spreadsheet = conectar_sheets()
+        if spreadsheet is None:
+            st.error(f"Não foi possível conectar ao Google Sheets para salvar os dados em {sheet_name}.")
+            return False
+        
+        # Verificar se a worksheet está em cache
+        if sheet_name in st.session_state.worksheets_cache:
+            worksheet = st.session_state.worksheets_cache[sheet_name]
+        else:
+            # Abrir a aba específica
+            try:
+                # Tentar acessar a planilha pelo GID primeiro (mais confiável)
+                if sheet_name in SHEET_GIDS:
+                    gid = SHEET_GIDS[sheet_name]
+                    
+                    # Se já temos as worksheets em cache, não precisamos buscar todas novamente
+                    if 'all_worksheets' not in st.session_state:
+                        st.session_state.all_worksheets = spreadsheet.worksheets()
+                    
+                    # Encontrar a worksheet com o GID correspondente
+                    worksheet = None
+                    for ws in st.session_state.all_worksheets:
+                        if ws.id == gid:
+                            worksheet = ws
+                            break
+                    
+                    # Se não encontrou pelo GID, tenta pelo nome
+                    if worksheet is None:
+                        worksheet = spreadsheet.worksheet(sheet_name)
+                else:
+                    # Se não tiver GID definido, tenta pelo nome
+                    worksheet = spreadsheet.worksheet(sheet_name)
+                
+                # Adicionar ao cache
+                st.session_state.worksheets_cache[sheet_name] = worksheet
+                
+            except Exception as e:
+                st.error(f"Erro ao acessar a planilha {sheet_name}: {str(e)}")
+                return False
+        
+        # Limpar a planilha, mas manter o cabeçalho
+        try:
+            # Obter o número de linhas na planilha
+            all_values = worksheet.get_all_values()
+            if len(all_values) > 1:  # Se tiver mais que o cabeçalho
+                # Limpar todas as linhas exceto o cabeçalho
+                worksheet.delete_rows(2, len(all_values))
+        except Exception as e:
+            st.error(f"Erro ao limpar a planilha {sheet_name}: {str(e)}")
+            # Continuar mesmo com erro, pois pode ser que a planilha esteja vazia
+        
+        # Verificar se o DataFrame está vazio
+        if df.empty:
+            # Atualizar o cache local
+            st.session_state.local_data[sheet_name.lower()] = df
+            return True
+        
+        # Preparar os dados para salvar
+        # Primeiro, converter o DataFrame para uma lista de listas
+        # A primeira lista contém os nomes das colunas
+        header = df.columns.tolist()
+        
+        # Verificar se o cabeçalho atual da planilha corresponde ao do DataFrame
+        try:
+            current_header = worksheet.row_values(1)
+            if current_header != header:
+                # Se o cabeçalho for diferente, atualizar o cabeçalho
+                worksheet.update('A1', [header])
+        except Exception as e:
+            # Se não conseguir obter o cabeçalho atual, apenas atualiza
+            worksheet.update('A1', [header])
+        
+        # Converter os valores do DataFrame para lista de listas
+        values = df.values.tolist()
+        
+        # Adicionar os dados à planilha
+        if values:  # Verificar se há valores para adicionar
+            try:
+                # Adicionar linha por linha para evitar problemas com tipos de dados
+                for i, row in enumerate(values, start=2):  # Começar da linha 2 (após o cabeçalho)
+                    # Converter valores para string para evitar problemas de tipo
+                    row_str = [str(val) if val is not None else "" for val in row]
+                    worksheet.update(f'A{i}', [row_str])
+            except Exception as e:
+                st.error(f"Erro ao adicionar dados à planilha {sheet_name}: {str(e)}")
+                return False
+        
+        # Atualizar o cache local
+        st.session_state.local_data[sheet_name.lower()] = df
+        
+        return True
+    except Exception as e:
+        st.error(f"Erro ao salvar dados na planilha {sheet_name}: {str(e)}")
+        return False
+
+# Função para adicionar uma linha ao Google Sheets
+def adicionar_linha_sheets(nova_linha, sheet_name):
+    """
+    Adiciona uma nova linha de dados ao Google Sheets.
+    
+    Args:
+        nova_linha: Dicionário com os dados a serem adicionados
+        sheet_name: Nome da planilha onde os dados serão adicionados
+    
+    Returns:
+        bool: True se os dados foram adicionados com sucesso, False caso contrário
+    """
+    try:
+        # Conectar ao Google Sheets
+        spreadsheet = conectar_sheets()
+        if spreadsheet is None:
+            st.error(f"Não foi possível conectar ao Google Sheets para adicionar dados em {sheet_name}.")
+            return False
+        
+        # Verificar se a worksheet está em cache
+        if sheet_name in st.session_state.worksheets_cache:
+            worksheet = st.session_state.worksheets_cache[sheet_name]
+        else:
+            # Abrir a aba específica
+            try:
+                # Tentar acessar a planilha pelo GID primeiro (mais confiável)
+                if sheet_name in SHEET_GIDS:
+                    gid = SHEET_GIDS[sheet_name]
+                    
+                    # Se já temos as worksheets em cache, não precisamos buscar todas novamente
+                    if 'all_worksheets' not in st.session_state:
+                        st.session_state.all_worksheets = spreadsheet.worksheets()
+                    
+                    # Encontrar a worksheet com o GID correspondente
+                    worksheet = None
+                    for ws in st.session_state.all_worksheets:
+                        if ws.id == gid:
+                            worksheet = ws
+                            break
+                    
+                    # Se não encontrou pelo GID, tenta pelo nome
+                    if worksheet is None:
+                        worksheet = spreadsheet.worksheet(sheet_name)
+                else:
+                    # Se não tiver GID definido, tenta pelo nome
+                    worksheet = spreadsheet.worksheet(sheet_name)
+                
+                # Adicionar ao cache
+                st.session_state.worksheets_cache[sheet_name] = worksheet
+                
+            except Exception as e:
+                st.error(f"Erro ao acessar a planilha {sheet_name}: {str(e)}")
+                return False
+        
+        # Obter os dados atuais para verificar o cabeçalho
+        try:
+            # Obter o cabeçalho atual
+            header = worksheet.row_values(1)
+            
+            # Se o cabeçalho estiver vazio, usar as chaves do dicionário como cabeçalho
+            if not header:
+                header = list(nova_linha.keys())
+                worksheet.update('A1', [header])
+        except Exception as e:
+            # Se não conseguir obter o cabeçalho, usar as chaves do dicionário
+            header = list(nova_linha.keys())
+            worksheet.update('A1', [header])
+        
+        # Preparar a nova linha de acordo com o cabeçalho
+        nova_linha_valores = []
+        for coluna in header:
+            if coluna in nova_linha:
+                nova_linha_valores.append(str(nova_linha[coluna]) if nova_linha[coluna] is not None else "")
+            else:
+                nova_linha_valores.append("")  # Valor vazio para colunas que não estão no dicionário
+        
+        # Adicionar a nova linha à planilha
+        try:
+            # Obter o número atual de linhas
+            all_values = worksheet.get_all_values()
+            next_row = len(all_values) + 1
+            
+            # Adicionar a nova linha
+            worksheet.update(f'A{next_row}', [nova_linha_valores])
+            
+            # Atualizar o cache local
+            if sheet_name.lower() in st.session_state.local_data:
+                df = st.session_state.local_data[sheet_name.lower()]
+                # Criar um DataFrame com a nova linha
+                nova_linha_df = pd.DataFrame([nova_linha])
+                # Concatenar com o DataFrame existente
+                df = pd.concat([df, nova_linha_df], ignore_index=True)
+                # Atualizar o cache
+                st.session_state.local_data[sheet_name.lower()] = df
+            
+            return True
+        except Exception as e:
+            st.error(f"Erro ao adicionar linha à planilha {sheet_name}: {str(e)}")
+            return False
+    
+    except Exception as e:
+        st.error(f"Erro ao adicionar linha à planilha {sheet_name}: {str(e)}")
+        return False
+
 # Função para carregar dados sob demanda
 def carregar_dados_sob_demanda(sheet_name):
     """
@@ -813,14 +1026,13 @@ def dashboard():
     arquitetos = df_projetos["Arquiteto"].unique()
     arquiteto_selecionado = st.sidebar.multiselect("Arquiteto", arquitetos)
 
-    st.divider()
+    st.write("")
+    st.write("")
 
     # Organização dos gráficos em abas para melhor visualização
     tabs = st.tabs(["Financeiro", "Projetos", "Funcionários"])
     
     with tabs[0]:  # Aba Financeiro
-        st.subheader("Visão Financeira")
-        
         # Seção 1: Gráficos de Receitas e Despesas por Mês/Ano
         st.markdown("### Análise Temporal")
         col1, col2 = st.columns(2)
@@ -935,8 +1147,10 @@ def dashboard():
                     barmode="group",
                     color_discrete_sequence=[cor_receitas, cor_despesas]
                 )
+                
                 fig_projetos.update_traces(textposition="outside")
                 fig_projetos.update_yaxes(showgrid=False, showticklabels=False)
+                
                 st.plotly_chart(fig_projetos, use_container_width=True)
 
         # Gráfico 6: Receitas e despesas por método de pagamento
@@ -994,9 +1208,7 @@ def dashboard():
                 fig_despesas_fornecedor.update_yaxes(showgrid=False, showticklabels=False)
                 st.plotly_chart(fig_despesas_fornecedor, use_container_width=True)
     
-    with tabs[1]:  # Aba Projetos
-        st.subheader("Análise de Projetos")
-        
+    with tabs[1]:  # Aba Projetos        
         # Seção 1: Localização e Status
         st.markdown("### Localização e Status")
         col1, col2 = st.columns(2)
@@ -1145,9 +1357,7 @@ def dashboard():
                 fig_projetos_pacote.update_yaxes(showgrid=False, showticklabels=False)
                 st.plotly_chart(fig_projetos_pacote, use_container_width=True)
     
-    with tabs[2]:  # Aba Responsáveis
-        st.subheader("Análise por Responsáveis")
-        
+    with tabs[2]:  # Aba Responsáveis        
         # Seção 1: m² por Responsáveis
         st.markdown("### Metros Quadrados por Responsável")
         col1, col2 = st.columns(2)
