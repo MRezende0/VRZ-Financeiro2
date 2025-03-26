@@ -19,6 +19,37 @@ import base64
 import io
 import uuid
 from dateutil.relativedelta import relativedelta
+import urllib3
+import requests
+import certifi
+import functools
+import threading
+
+# Monkey patch SSL para resolver problemas de certificado
+# Esta é uma solução mais robusta para o problema de SSL
+def patch_ssl():
+    # Criar um contexto SSL personalizado que ignora verificações de certificado
+    old_merge_environment_settings = requests.Session.merge_environment_settings
+
+    @functools.wraps(old_merge_environment_settings)
+    def new_merge_environment_settings(self, url, proxies, stream, verify, cert):
+        settings = old_merge_environment_settings(self, url, proxies, stream, verify, cert)
+        settings['verify'] = False
+        return settings
+
+    requests.Session.merge_environment_settings = new_merge_environment_settings
+
+    # Desabilitar avisos de SSL inseguro
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    
+    # Configurar contexto SSL personalizado
+    ssl._create_default_https_context = ssl._create_unverified_context
+    
+    # Configurar variável de ambiente para ignorar verificação SSL
+    os.environ['PYTHONHTTPSVERIFY'] = '0'
+
+# Aplicar o patch SSL
+patch_ssl()
 
 ########################################## CONFIGURAÇÃO ##########################################
 
@@ -79,81 +110,212 @@ SHEET_GIDS = {
     "Receitas": "0",
     "Despesas": "2095402559",
     "Projetos": "1967040877",
-    "Categorias_Receitas": "70356418",
-    "Fornecedor_Despesas": "62015063"
+    "Categorias_Receita": "70356418",
+    "Fornecedor_Despesa": "62015063"
 }
 
 COLUNAS_ESPERADAS = {
     "Receitas": ["DataRecebimento", "Descrição", "Projeto", "Categoria", "ValorTotal", "FormaPagamento", "NF"],
     "Despesas": ["DataPagamento", "Descrição", "Categoria", "ValorTotal", "Parcelas", "FormaPagamento", "Responsável", "Fornecedor", "Projeto", "NF"],
     "Projetos": ["Projeto", "Cliente", "Localizacao", "Placa", "Post", "DataInicio", "DataFinal", "Contrato", "Status", "Briefing", "Arquiteto", "Tipo", "Pacote", "m2", "Parcelas", "ValorTotal", "ResponsávelElétrico", "ResponsávelHidráulico", "ResponsávelModelagem", "ResponsávelDetalhamento"],
-    "Categorias_Receitas": ["Data", "Solicitante", "Biologico", "Quimico", "Observacoes", "Status"],
-    "Fornecedor_Despesas": ["Data", "Biologico", "Quimico", "Tempo", "Placa1", "Placa2", "Placa3", "MédiaPlacas", "Diluicao", "ConcObtida", "Dose", "ConcAtivo", "VolumeCalda", "ConcEsperada", "Razao", "Resultado"]
+    "Categorias_Receita": ["Data", "Solicitante", "Biologico", "Quimico", "Observacoes", "Status"],
+    "Fornecedor_Despesa": ["Data", "Biologico", "Quimico", "Tempo", "Placa1", "Placa2", "Placa3", "MédiaPlacas", "Diluicao", "ConcObtida", "Dose", "ConcAtivo", "VolumeCalda", "ConcEsperada", "Razao", "Resultado"]
 }
 
 ########################################## DADOS ##########################################
 
-# Função para conectar ao Google Sheets
-def conectar_sheets():
+# Inicialização dos dados locais
+if 'local_data' not in st.session_state:
+    st.session_state.local_data = {
+        'receitas': pd.DataFrame(),
+        'despesas': pd.DataFrame(),
+        'projetos': pd.DataFrame(),
+        'categorias_receitas': pd.DataFrame(),
+        'fornecedor_despesas': pd.DataFrame()
+    }
+
+# Flag para controlar se os dados já foram carregados
+if 'dados_carregados' not in st.session_state:
+    st.session_state.dados_carregados = False
+
+# Cache para o cliente do Google Sheets
+if 'sheets_client' not in st.session_state:
+    st.session_state.sheets_client = None
+
+# Cache para a planilha
+if 'spreadsheet' not in st.session_state:
+    st.session_state.spreadsheet = None
+
+# Cache para as worksheets
+if 'worksheets_cache' not in st.session_state:
+    st.session_state.worksheets_cache = {}
+
+def conectar_sheets(force_reconnect=False):
+    # Se já temos um cliente conectado e não estamos forçando reconexão, retornar o cliente existente
+    if not force_reconnect and st.session_state.sheets_client is not None and st.session_state.spreadsheet is not None:
+        return st.session_state.spreadsheet
+    
     try:
-        # Desabilitar verificação SSL temporariamente para contornar problemas de certificado
-        ssl._create_default_https_context = ssl._create_unverified_context
-        
         # Escopo para acesso ao Google Sheets
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         
         # Carregar credenciais do arquivo secrets.toml
         try:
-            creds_info = st.secrets["gcp_service_account"]
-            creds_dict = {
-                "type": creds_info["type"],
-                "project_id": creds_info["project_id"],
-                "private_key_id": creds_info["private_key_id"],
-                "private_key": creds_info["private_key"].replace("\\n", "\n"),
-                "client_email": creds_info["client_email"],
-                "client_id": creds_info["client_id"],
-                "auth_uri": creds_info["auth_uri"],
-                "token_uri": creds_info["token_uri"],
-                "auth_provider_x509_cert_url": creds_info["auth_provider_x509_cert_url"],
-                "client_x509_cert_url": creds_info["client_x509_cert_url"]
-            }
+            # Tentar carregar de secrets primeiro
+            try:
+                creds_info = st.secrets["gcp_service_account"]
+                creds_dict = {
+                    "type": creds_info["type"],
+                    "project_id": creds_info["project_id"],
+                    "private_key_id": creds_info["private_key_id"],
+                    "private_key": creds_info["private_key"].replace("\\n", "\n"),
+                    "client_email": creds_info["client_email"],
+                    "client_id": creds_info["client_id"],
+                    "auth_uri": creds_info["auth_uri"],
+                    "token_uri": creds_info["token_uri"],
+                    "auth_provider_x509_cert_url": creds_info["auth_provider_x509_cert_url"],
+                    "client_x509_cert_url": creds_info["client_x509_cert_url"]
+                }
+            except:
+                # Se não conseguir carregar de secrets, usar valores padrão para desenvolvimento
+                return None
+            
+            # Criar uma sessão personalizada com SSL desativado
+            session = requests.Session()
+            session.verify = False
+            
+            # Desativar avisos de SSL
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            
+            # Criar credenciais
             creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+            
+            # Adicionar a sessão personalizada às credenciais
+            creds.session = session
         except Exception as e:
-            st.error(f"Erro ao carregar credenciais: {e}")
             return None
         
-        # Conectar ao Google Sheets
-        client = gspread.authorize(creds)
+        # Conectar ao Google Sheets com retry
+        max_retries = 2  # Reduzido para 2 tentativas para acelerar
+        retry_count = 0
         
-        # Abrir a planilha pelo ID
-        try:
-            spreadsheet = client.open_by_key(st.secrets["sheet_id"])
-            return spreadsheet
-        except Exception as e:
-            st.error(f"Erro ao abrir planilha: {e}")
-            return None
+        while retry_count < max_retries:
+            try:
+                client = gspread.authorize(creds)
+                st.session_state.sheets_client = client
+                break
+            except Exception as e:
+                retry_count += 1
+                if retry_count >= max_retries:
+                    return None
+                time.sleep(0.5)  # Reduzido para 0.5 segundo
+        
+        # Abrir a planilha pelo ID com retry
+        retry_count = 0
+        while retry_count < max_retries:
+            try:
+                spreadsheet = client.open_by_key(SHEET_ID)
+                st.session_state.spreadsheet = spreadsheet
+                return spreadsheet
+            except Exception as e:
+                retry_count += 1
+                if retry_count >= max_retries:
+                    return None
+                time.sleep(0.5)  # Reduzido para 0.5 segundo
     except Exception as e:
-        st.error(f"Erro ao conectar ao Google Sheets: {e}")
         return None
 
 # Função para carregar dados do Google Sheets
-def carregar_dados_sheets(sheet_name):
+def carregar_dados_sheets(sheet_name, force_reload=False):
     try:
-        # Verificar se já temos os dados em cache na sessão
-        if sheet_name.lower() in st.session_state.local_data and not st.session_state.local_data[sheet_name.lower()].empty:
+        # Verificar se já temos os dados em cache na sessão e não estamos forçando recarga
+        if not force_reload and sheet_name.lower() in st.session_state.local_data and not st.session_state.local_data[sheet_name.lower()].empty:
             return st.session_state.local_data[sheet_name.lower()]
+        
+        # Dados padrão para retornar em caso de falha
+        default_data = {
+            "Categorias_Receitas": pd.DataFrame({"Categoria": ["Pró-Labore", "Investimentos", "Freelance", "Outros"]}),
+            "Fornecedor_Despesas": pd.DataFrame({"Fornecedor": ["Outros"]})
+        }
         
         # Conectar ao Google Sheets
         spreadsheet = conectar_sheets()
         if spreadsheet is None:
+            # Se não conseguir conectar, retornar dados padrão se disponíveis
+            if sheet_name in default_data:
+                df = default_data[sheet_name]
+                st.session_state.local_data[sheet_name.lower()] = df
+                return df
             return pd.DataFrame()
         
-        # Abrir a aba específica
-        try:
-            worksheet = spreadsheet.worksheet(sheet_name)
-        except Exception as e:
-            st.error(f"Erro ao abrir aba {sheet_name}: {e}")
-            return pd.DataFrame()
+        # Verificar se a worksheet está em cache
+        if sheet_name in st.session_state.worksheets_cache:
+            worksheet = st.session_state.worksheets_cache[sheet_name]
+        else:
+            # Abrir a aba específica
+            try:
+                # Tentar acessar a planilha pelo GID primeiro (mais confiável)
+                if sheet_name in SHEET_GIDS:
+                    gid = SHEET_GIDS[sheet_name]
+                    
+                    # Se já temos as worksheets em cache, não precisamos buscar todas novamente
+                    if 'all_worksheets' not in st.session_state:
+                        st.session_state.all_worksheets = spreadsheet.worksheets()
+                    
+                    # Encontrar a worksheet com o GID correspondente
+                    worksheet = None
+                    for ws in st.session_state.all_worksheets:
+                        if ws.id == gid:
+                            worksheet = ws
+                            break
+                    
+                    # Se não encontrou pelo GID, tenta pelo nome
+                    if worksheet is None:
+                        worksheet = spreadsheet.worksheet(sheet_name)
+                else:
+                    # Se não tiver GID definido, tenta pelo nome
+                    worksheet = spreadsheet.worksheet(sheet_name)
+                
+                # Adicionar ao cache
+                st.session_state.worksheets_cache[sheet_name] = worksheet
+                
+            except Exception as e:
+                # Tentar criar a planilha se ela não existir
+                try:
+                    if sheet_name == "Categorias_Receitas":
+                        worksheet = spreadsheet.add_worksheet(title=sheet_name, rows=100, cols=20)
+                        # Adicionar cabeçalho
+                        worksheet.append_row(["Categoria"])
+                        # Adicionar categorias padrão
+                        for categoria in ["Pró-Labore", "Investimentos", "Freelance", "Outros"]:
+                            worksheet.append_row([categoria])
+                        df = default_data["Categorias_Receitas"]
+                        # Armazenar no cache da sessão
+                        st.session_state.local_data[sheet_name.lower()] = df
+                        # Adicionar ao cache de worksheets
+                        st.session_state.worksheets_cache[sheet_name] = worksheet
+                        return df
+                    elif sheet_name == "Fornecedor_Despesas":
+                        worksheet = spreadsheet.add_worksheet(title=sheet_name, rows=100, cols=20)
+                        # Adicionar cabeçalho
+                        worksheet.append_row(["Fornecedor"])
+                        # Adicionar fornecedor padrão
+                        worksheet.append_row(["Outros"])
+                        df = default_data["Fornecedor_Despesas"]
+                        # Armazenar no cache da sessão
+                        st.session_state.local_data[sheet_name.lower()] = df
+                        # Adicionar ao cache de worksheets
+                        st.session_state.worksheets_cache[sheet_name] = worksheet
+                        return df
+                    else:
+                        return pd.DataFrame()
+                except Exception as create_error:
+                    # Se não conseguir criar, retorna dados padrão se disponíveis
+                    if sheet_name in default_data:
+                        df = default_data[sheet_name]
+                        st.session_state.local_data[sheet_name.lower()] = df
+                        return df
+                    return pd.DataFrame()
         
         # Obter todos os dados
         data = worksheet.get_all_records()
@@ -166,153 +328,108 @@ def carregar_dados_sheets(sheet_name):
         
         return df
     except Exception as e:
-        st.error(f"Erro ao carregar dados de {sheet_name}: {e}")
+        # Em caso de erro, retornar dados padrão se disponíveis
+        if sheet_name in default_data:
+            df = default_data[sheet_name]
+            st.session_state.local_data[sheet_name.lower()] = df
+            return df
         return pd.DataFrame()
 
-# Função para salvar dados no Google Sheets
-def salvar_dados_sheets(df, sheet_name):
+# Função para carregar dados sob demanda
+def carregar_dados_sob_demanda(sheet_name):
+    """
+    Carrega dados de uma planilha específica apenas quando necessário
+    """
+    # Inicializar o dicionário de dados locais se não existir
+    if "local_data" not in st.session_state:
+        st.session_state.local_data = {}
+    
+    # Normalizar o nome da planilha para evitar problemas de case
+    sheet_name_lower = sheet_name.lower()
+    
+    # Se os dados já estiverem em cache e não estiverem vazios, retorna do cache
+    if sheet_name_lower in st.session_state.local_data and not st.session_state.local_data[sheet_name_lower].empty:
+        return st.session_state.local_data[sheet_name_lower]
+    
     try:
-        # Conectar ao Google Sheets
-        spreadsheet = conectar_sheets()
-        if spreadsheet is None:
-            return False
+        # Tenta carregar os dados do Google Sheets
+        df = carregar_dados_sheets(sheet_name)
         
-        # Abrir a aba específica
-        try:
-            worksheet = spreadsheet.worksheet(sheet_name)
-        except Exception as e:
-            st.error(f"Erro ao abrir aba {sheet_name}: {e}")
-            return False
+        # Processar dados específicos conforme necessário
+        if sheet_name == "Receitas" and not df.empty and "DataRecebimento" in df.columns:
+            df["DataRecebimento"] = pd.to_datetime(df["DataRecebimento"], dayfirst=True, errors="coerce")
+        elif sheet_name == "Despesas" and not df.empty and "DataPagamento" in df.columns:
+            df["DataPagamento"] = pd.to_datetime(df["DataPagamento"], dayfirst=True, errors="coerce")
+        elif sheet_name == "Projetos" and not df.empty:
+            if "DataInicio" in df.columns:
+                df["DataInicio"] = pd.to_datetime(df["DataInicio"], dayfirst=True, errors="coerce")
+            if "DataFinal" in df.columns:
+                df["DataFinal"] = pd.to_datetime(df["DataFinal"], dayfirst=True, errors="coerce")
+            if "Projeto" in df.columns:
+                df = df.sort_values("Projeto")
         
-        # Limpar a planilha
-        worksheet.clear()
-        
-        # Adicionar cabeçalhos
-        headers = df.columns.tolist()
-        worksheet.append_row(headers)
-        
-        # Adicionar dados
-        for _, row in df.iterrows():
-            worksheet.append_row(row.tolist())
-        
-        # Atualizar o cache da sessão
-        st.session_state.local_data[sheet_name.lower()] = df
-        
-        return True
+        # Armazenar no cache
+        st.session_state.local_data[sheet_name_lower] = df
+        return df
     except Exception as e:
-        st.error(f"Erro ao salvar dados em {sheet_name}: {e}")
-        return False
+        # Em caso de erro, retornar um DataFrame padrão ou vazio
+        if sheet_name == "Categorias_Receitas":
+            df = pd.DataFrame({"Categoria": ["Pró-Labore", "Investimentos", "Freelance", "Outros"]})
+        elif sheet_name == "Categorias_Despesas":
+            df = pd.DataFrame({"Categoria": ["Fixo", "Variável", "Investimento", "Outros"]})
+        elif sheet_name == "Fornecedor_Despesas":
+            df = pd.DataFrame({"Fornecedor": ["Outros"]})
+        elif sheet_name == "Receitas" or sheet_name == "Despesas":
+            df = pd.DataFrame({"DataRecebimento" if sheet_name == "Receitas" else "DataPagamento": [], 
+                              "Descrição": [], "Categoria": [], "ValorTotal": []})
+        elif sheet_name == "Projetos":
+            df = pd.DataFrame({"Projeto": [], "Cliente": [], "Status": []})
+        else:
+            df = pd.DataFrame()
+        
+        # Armazenar o DataFrame padrão no cache
+        st.session_state.local_data[sheet_name_lower] = df
+        return df
 
-# Função para adicionar uma linha ao Google Sheets
-def adicionar_linha_sheets(dados, sheet_name):
+# Função para carregar dados iniciais (chamada após login bem-sucedido)
+def carregar_dados_iniciais():
+    # Evitar carregar os dados novamente se já foram carregados
+    if st.session_state.dados_carregados:
+        return
+    
+    # Marcar os dados como carregados para evitar carregamentos repetidos
+    st.session_state.dados_carregados = True
+    
+    # Carregar apenas os dados essenciais para o funcionamento inicial
+    # Outros dados serão carregados sob demanda quando necessário
     try:
-        # Conectar ao Google Sheets
-        spreadsheet = conectar_sheets()
-        if spreadsheet is None:
-            return False
+        # Carregar categorias de receitas em segundo plano
+        if 'categorias_receitas' in st.session_state.local_data and st.session_state.local_data['categorias_receitas'].empty:
+            st.session_state.local_data['categorias_receitas'] = pd.DataFrame({"Categoria": ["Pró-Labore", "Investimentos", "Freelance", "Outros"]})
         
-        # Abrir a aba específica
-        try:
-            worksheet = spreadsheet.worksheet(sheet_name)
-        except Exception as e:
-            st.error(f"Erro ao abrir aba {sheet_name}: {e}")
-            return False
+        # Carregar fornecedores de despesas em segundo plano
+        if 'fornecedor_despesas' in st.session_state.local_data and st.session_state.local_data['fornecedor_despesas'].empty:
+            st.session_state.local_data['fornecedor_despesas'] = pd.DataFrame({"Fornecedor": ["Outros"]})
         
-        # Verificar se a planilha está vazia
-        try:
-            headers = worksheet.row_values(1)
-            if not headers:
-                # Se estiver vazia, adicionar cabeçalhos
-                headers = list(dados.keys())
-                worksheet.append_row(headers)
-        except:
-            # Se ocorrer erro, provavelmente a planilha está vazia
-            headers = list(dados.keys())
-            worksheet.append_row(headers)
-        
-        # Preparar os dados na ordem correta
-        row_data = [dados.get(header, "") for header in headers]
-        
-        # Adicionar a linha
-        worksheet.append_row(row_data)
-        
-        # Limpar o cache da sessão para forçar recarga
-        if sheet_name.lower() in st.session_state.local_data:
-            st.session_state.local_data[sheet_name.lower()] = pd.DataFrame()
-        
-        return True
+        # Iniciar thread para carregar dados em segundo plano
+        threading.Thread(target=carregar_dados_background, daemon=True).start()
     except Exception as e:
-        st.error(f"Erro ao adicionar linha em {sheet_name}: {e}")
-        return False
+        pass
 
-# Função para salvar categorias
-def salvar_categorias(df, sheet_name):
-    return salvar_dados_sheets(df, sheet_name)
-
-# Inicialização dos dados locais
-if 'local_data' not in st.session_state:
-    st.session_state.local_data = {
-        'receitas': pd.DataFrame(),
-        'despesas': pd.DataFrame(),
-        'projetos': pd.DataFrame(),
-        'categorias_receitas': pd.DataFrame(),
-        'fornecedor_despesas': pd.DataFrame()
-    }
-
-# Carrega os dados iniciais
-if 'receitas' in st.session_state.local_data and not st.session_state.local_data['receitas'].empty:
-    df_receitas = st.session_state.local_data['receitas']
-else:
-    df_receitas = carregar_dados_sheets("Receitas")
-    st.session_state.local_data['receitas'] = df_receitas
-
-if 'despesas' in st.session_state.local_data and not st.session_state.local_data['despesas'].empty:
-    df_despesas = st.session_state.local_data['despesas']
-else:
-    df_despesas = carregar_dados_sheets("Despesas")
-    st.session_state.local_data['despesas'] = df_despesas
-
-if 'projetos' in st.session_state.local_data and not st.session_state.local_data['projetos'].empty:
-    df_projetos = st.session_state.local_data['projetos']
-else:
-    df_projetos = carregar_dados_sheets("Projetos")
-    st.session_state.local_data['projetos'] = df_projetos
-
-# Ordenar projetos por nome
-if not df_projetos.empty and "Projeto" in df_projetos.columns:
-    df_projetos = df_projetos.sort_values("Projeto")
-
-# Converter colunas de data explicitamente
-if not df_receitas.empty and "DataRecebimento" in df_receitas.columns:
-    df_receitas["DataRecebimento"] = pd.to_datetime(df_receitas["DataRecebimento"], dayfirst=True, errors="coerce")
-if not df_despesas.empty and "DataPagamento" in df_despesas.columns:
-    df_despesas["DataPagamento"] = pd.to_datetime(df_despesas["DataPagamento"], dayfirst=True, errors="coerce")
-if not df_projetos.empty:
-    if "DataInicio" in df_projetos.columns:
-        df_projetos["DataInicio"] = pd.to_datetime(df_projetos["DataInicio"], dayfirst=True, errors="coerce")
-    if "DataFinal" in df_projetos.columns:
-        df_projetos["DataFinal"] = pd.to_datetime(df_projetos["DataFinal"], dayfirst=True, errors="coerce")
-
-# Carrega as categorias de receitas e despesas
-if 'categorias_receitas' in st.session_state.local_data and not st.session_state.local_data['categorias_receitas'].empty:
-    df_categorias_receitas = st.session_state.local_data['categorias_receitas']
-else:
-    df_categorias_receitas = carregar_dados_sheets("Categorias_Receitas")
-    if df_categorias_receitas.empty:
-        df_categorias_receitas = pd.DataFrame({"Categoria": ["Pró-Labore", "Investimentos", "Freelance", "Outros"]})
-        salvar_dados_sheets(df_categorias_receitas, "Categorias_Receitas")
-    st.session_state.local_data['categorias_receitas'] = df_categorias_receitas
-
-if 'fornecedor_despesas' in st.session_state.local_data and not st.session_state.local_data['fornecedor_despesas'].empty:
-    df_fornecedor_despesas = st.session_state.local_data['fornecedor_despesas']
-else:
-    df_fornecedor_despesas = carregar_dados_sheets("Fornecedor_Despesas")
-    if df_fornecedor_despesas.empty:
-        df_fornecedor_despesas = pd.DataFrame({"Fornecedor": ["Outros"]})
-        salvar_dados_sheets(df_fornecedor_despesas, "Fornecedor_Despesas")
-    st.session_state.local_data['fornecedor_despesas'] = df_fornecedor_despesas
-
-########################################## LOGIN ##########################################
+# Função para carregar dados em segundo plano
+def carregar_dados_background():
+    try:
+        # Conectar ao Google Sheets se ainda não estiver conectado
+        if st.session_state.spreadsheet is None:
+            conectar_sheets()
+        
+        # Carregar categorias de receitas
+        carregar_dados_sheets("Categorias_Receitas")
+        
+        # Carregar fornecedores de despesas
+        carregar_dados_sheets("Fornecedor_Despesas")
+    except Exception as e:
+        pass
 
 # Função de login
 def login(email, senha):
@@ -322,19 +439,30 @@ def login(email, senha):
 
 # Tela de Login
 def login_screen():
-    st.title("🔐 Login - VRZ Gestão Financeira")
+    # st.title("🔐 Login - VRZ Gestão Financeira")
     st.markdown("Por favor, insira suas credenciais para acessar o sistema.")
-
+    
     # Formulário de login
     with st.form("login_form"):
         email = st.text_input("E-mail")
         password = st.text_input("Senha", type="password")
         submit = st.form_submit_button("Entrar")
-
+    
     if submit:
         if login(email, password):
-            st.success("Login feito com sucesso!")
+            # Definir o estado de login antes de qualquer outra operação
             st.session_state["logged_in"] = True
+            
+            # Iniciar conexão com Google Sheets em segundo plano
+            conectar_sheets()
+            
+            # Marcar que os dados serão carregados após o redirecionamento
+            st.session_state.carregar_dados_apos_login = True
+            
+            # Mensagem de sucesso
+            st.success("Login feito com sucesso!")
+            
+            # Redirecionar para a página principal sem esperar pelo carregamento dos dados
             st.rerun()
         else:
             st.error("Credenciais inválidas. Verifique seu e-mail e senha.")
@@ -347,27 +475,40 @@ def salvar_dados(df, sheet_name):
 
 # Tela de Registrar Receita
 def registrar_receita():
-    global df_receitas  # Declara df_receitas como global
+    st.subheader("📈 Registrar Receita")
     
-    st.subheader("📥 Registrar Receita")
+    # Carregar dados necessários
+    df_categorias_receitas = carregar_dados_sob_demanda("Categorias_Receitas")
+    df_projetos = carregar_dados_sob_demanda("Projetos")
     
-    # Formulário para adicionar nova receita
+    # Verificar se os dados foram carregados corretamente
+    if df_categorias_receitas.empty or "Categoria" not in df_categorias_receitas.columns:
+        df_categorias_receitas = pd.DataFrame({"Categoria": ["Pró-Labore", "Investimentos", "Freelance", "Outros"]})
+    
     with st.form("nova_receita"):
         col1, col2 = st.columns(2)
         
         with col1:
             data_recebimento = st.date_input("Data de Recebimento", datetime.now())
             descricao = st.text_input("Descrição")
-            categoria = st.selectbox("Categoria", df_categorias_receitas["Categoria"])
+            categoria = st.selectbox("Categoria", df_categorias_receitas["Categoria"].tolist())
             
         with col2:
             valor = st.number_input("Valor (R$)", min_value=0.0, format="%.2f")
             forma_pagamento = st.selectbox("Forma de Pagamento", ["Pix", "Transferência", "Dinheiro", "Cheque", "Cartão de Crédito", "Outros"])
-            projeto = st.selectbox("Projeto", [""] + list(df_projetos["Projeto"]) if not df_projetos.empty else [""])
-            
+            projeto = st.selectbox("Projeto", [""] + list(df_projetos["Projeto"]) if not df_projetos.empty and "Projeto" in df_projetos.columns else [""])
+        
         # Botão para adicionar nova categoria
         nova_categoria = st.text_input("Adicionar Nova Categoria")
-        if st.form_submit_button("Adicionar Categoria"):
+        
+        # Botões de ação
+        col1, col2 = st.columns(2)
+        with col1:
+            add_categoria = st.form_submit_button("Adicionar Categoria")
+        with col2:
+            submit_receita = st.form_submit_button("Salvar Receita")
+            
+        if add_categoria:
             if nova_categoria and nova_categoria not in df_categorias_receitas["Categoria"].values:
                 nova_categoria_df = pd.DataFrame({"Categoria": [nova_categoria]})
                 df_categorias_receitas = pd.concat([df_categorias_receitas, nova_categoria_df], ignore_index=True)
@@ -376,10 +517,7 @@ def registrar_receita():
             else:
                 st.warning("Categoria já existe ou está vazia.")
             
-        # Botão para submeter o formulário
-        submitted = st.form_submit_button("Registrar Receita")
-        
-        if submitted:
+        if submit_receita:
             # Cria um dicionário com os dados da nova receita
             nova_receita = {
                 "DataRecebimento": data_recebimento.strftime("%d/%m/%Y"),
@@ -400,7 +538,10 @@ def registrar_receita():
 
 # Tela de Registrar Despesa
 def registrar_despesa():
-    global df_despesas  # Declara df_despesas como global
+    # Carregar dados necessários
+    df_categorias_despesas = carregar_dados_sob_demanda("Categorias_Despesas")
+    df_fornecedor_despesas = carregar_dados_sob_demanda("Fornecedor_Despesas")
+    df_projetos = carregar_dados_sob_demanda("Projetos")
     
     st.subheader("📤 Registrar Despesa")
     
@@ -411,8 +552,8 @@ def registrar_despesa():
         with col1:
             data_pagamento = st.date_input("Data de Pagamento", datetime.now())
             descricao = st.text_input("Descrição")
-            categoria = st.selectbox("Categoria", ["Alimentação", "Transporte", "Moradia", "Saúde", "Educação", "Lazer", "Outros"])
-            fornecedor = st.selectbox("Fornecedor", df_fornecedor_despesas["Fornecedor"])
+            categoria = st.selectbox("Categoria", df_categorias_despesas["Categoria"].tolist() if not df_categorias_despesas.empty else ["Alimentação", "Transporte", "Moradia", "Saúde", "Educação", "Lazer", "Outros"])
+            fornecedor = st.selectbox("Fornecedor", df_fornecedor_despesas["Fornecedor"].tolist() if not df_fornecedor_despesas.empty else ["Outros"])
             
         with col2:
             valor = st.number_input("Valor (R$)", min_value=0.0, format="%.2f")
@@ -508,7 +649,9 @@ def salvar_projetos(df):
 
 # Tela de Registrar Projeto
 def registrar_projeto():
-    global df_projetos  # Declara df_projetos como global
+    # Carregar dados necessários
+    df_projetos = carregar_dados_sob_demanda("Projetos")
+    
     st.title("🏗️ Registrar Projeto")
 
     with st.form("form_projeto"):
@@ -583,12 +726,16 @@ def formatar_br(valor):
     return f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 def dashboard():
+    # Carregar dados necessários para o dashboard
+    df_receitas = carregar_dados_sob_demanda("Receitas")
+    df_despesas = carregar_dados_sob_demanda("Despesas")
+    df_projetos = carregar_dados_sob_demanda("Projetos")
 
     st.title("📊 Dashboard Financeiro")
 
     # Cálculos
-    receitas = df_receitas["ValorTotal"].sum()
-    despesas = df_despesas["ValorTotal"].sum()
+    receitas = df_receitas["ValorTotal"].sum() if not df_receitas.empty and "ValorTotal" in df_receitas.columns else 0
+    despesas = df_despesas["ValorTotal"].sum() if not df_despesas.empty and "ValorTotal" in df_despesas.columns else 0
     saldo = receitas - despesas
 
     # Define a cor do saldo com base no valor
@@ -1368,7 +1515,7 @@ def funcionarios():
 ########################################## PÁGINA PRINCIPAL ##########################################
 
 def main_app():
-    # st.sidebar.image("imagens/VRZ-LOGO-44.png")
+    st.sidebar.image("imagens/logo-cocal.png")
     st.sidebar.title("Menu")
     menu_option = st.sidebar.radio(
         "Selecione a funcionalidade:",
@@ -1398,6 +1545,13 @@ def main_app():
 if __name__ == "__main__":
     if "logged_in" not in st.session_state:
         st.session_state["logged_in"] = False
+    
+    # Verificar se precisamos carregar dados após o login
+    if st.session_state.get("carregar_dados_apos_login", False) and not st.session_state.get("dados_carregados", False):
+        # Iniciar carregamento em segundo plano sem bloquear a interface
+        carregar_dados_iniciais()
+        # Limpar a flag
+        st.session_state.carregar_dados_apos_login = False
 
     if st.session_state["logged_in"]:
         main_app()
