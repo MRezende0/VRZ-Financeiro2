@@ -815,365 +815,405 @@ def dashboard():
 
     st.divider()
 
-    # Gráfico 1: Quantidade de receitas por mês/ano
-    if not df_receitas.empty:
-        df_receitas["DataRecebimento"] = pd.to_datetime(df_receitas["DataRecebimento"])
-        df_receitas["MesAno"] = df_receitas["DataRecebimento"].dt.to_period("M").astype(str)
-        receitas_por_mes_ano = df_receitas.groupby("MesAno")["ValorTotal"].sum().reset_index()
-        receitas_por_mes_ano["MesAno"] = pd.to_datetime(receitas_por_mes_ano["MesAno"])
+    # Organização dos gráficos em abas para melhor visualização
+    tabs = st.tabs(["Financeiro", "Projetos", "Funcionários"])
+    
+    with tabs[0]:  # Aba Financeiro
+        st.subheader("Visão Financeira")
         
-        fig_receitas_mes_ano = px.bar(
-            receitas_por_mes_ano,
-            x="MesAno",
-            y="ValorTotal",
-            text="ValorTotal",
-            title="Receitas por Mês/Ano",
-            labels={"ValorTotal": "Total de Receitas", "MesAno": "Mês/Ano"},
-            color_discrete_sequence=[cor_receitas]  # Verde para receitas
-        )
+        # Seção 1: Gráficos de Receitas e Despesas por Mês/Ano
+        st.markdown("### Análise Temporal")
+        col1, col2 = st.columns(2)
         
-        fig_receitas_mes_ano.update_traces(textposition="outside")  # Posiciona rótulos fora das barras
-        fig_receitas_mes_ano.update_xaxes(
-            tickformat="%b/%Y",
-            dtick="M1",
-            showgrid=False  # Remove linhas de grade verticais
-        )
-        fig_receitas_mes_ano.update_yaxes(showgrid=False, showticklabels=False)  # Remove linhas de grade horizontais
+        # Gráfico 1: Quantidade de receitas por mês/ano
+        with col1:
+            if not df_receitas.empty:
+                df_receitas["DataRecebimento"] = pd.to_datetime(df_receitas["DataRecebimento"])
+                df_receitas["MesAno"] = df_receitas["DataRecebimento"].dt.to_period("M").astype(str)
+                receitas_por_mes_ano = df_receitas.groupby("MesAno")["ValorTotal"].sum().reset_index()
+                receitas_por_mes_ano["MesAno"] = pd.to_datetime(receitas_por_mes_ano["MesAno"])
+                
+                fig_receitas_mes_ano = px.bar(
+                    receitas_por_mes_ano,
+                    x="MesAno",
+                    y="ValorTotal",
+                    text="ValorTotal",
+                    title="Receitas por Mês/Ano",
+                    labels={"ValorTotal": "Total de Receitas", "MesAno": "Mês/Ano"},
+                    color_discrete_sequence=[cor_receitas]
+                )
+                
+                fig_receitas_mes_ano.update_traces(textposition="outside")
+                fig_receitas_mes_ano.update_xaxes(
+                    tickformat="%b/%Y",
+                    dtick="M1",
+                    showgrid=False
+                )
+                fig_receitas_mes_ano.update_yaxes(showgrid=False, showticklabels=False)
+                
+                st.plotly_chart(fig_receitas_mes_ano, use_container_width=True)
+
+        # Gráfico 2: Quantidade de despesas por mês/ano
+        with col2:
+            if not df_despesas.empty:
+                df_despesas["DataPagamento"] = pd.to_datetime(df_despesas["DataPagamento"])
+                df_despesas["MesAno"] = df_despesas["DataPagamento"].dt.to_period("M").astype(str)
+                despesas_por_mes_ano = df_despesas.groupby("MesAno")["ValorTotal"].sum().reset_index()
+                despesas_por_mes_ano["MesAno"] = pd.to_datetime(despesas_por_mes_ano["MesAno"])
+                
+                fig_despesas_mes_ano = px.bar(
+                    despesas_por_mes_ano,
+                    x="MesAno",
+                    y="ValorTotal",
+                    text="ValorTotal",
+                    title="Despesas por Mês/Ano",
+                    labels={"ValorTotal": "Total de Despesas", "MesAno": "Mês/Ano"},
+                    color_discrete_sequence=[cor_despesas]
+                )
+                
+                fig_despesas_mes_ano.update_traces(textposition="outside")
+                fig_despesas_mes_ano.update_xaxes(
+                    tickformat="%b/%Y",
+                    dtick="M1"
+                )
+                fig_despesas_mes_ano.update_yaxes(showgrid=False, showticklabels=False)
+                
+                st.plotly_chart(fig_despesas_mes_ano, use_container_width=True)
         
-        st.plotly_chart(fig_receitas_mes_ano, use_container_width=True)
-
-    # Gráfico 2: Quantidade de despesas por mês/ano
-    if not df_despesas.empty:
-        df_despesas["DataPagamento"] = pd.to_datetime(df_despesas["DataPagamento"])
-        df_despesas["MesAno"] = df_despesas["DataPagamento"].dt.to_period("M").astype(str)
-        despesas_por_mes_ano = df_despesas.groupby("MesAno")["ValorTotal"].sum().reset_index()
-        despesas_por_mes_ano["MesAno"] = pd.to_datetime(despesas_por_mes_ano["MesAno"])
+        # Seção 2: Gráficos de Receitas e Despesas por Categoria
+        st.markdown("### Análise por Categoria")
+        col1, col2 = st.columns(2)
         
-        fig_despesas_mes_ano = px.bar(
-            despesas_por_mes_ano,
-            x="MesAno",
-            y="ValorTotal",
-            text="ValorTotal",
-            title="Despesas por Mês/Ano",
-            labels={"ValorTotal": "Total de Despesas", "MesAno": "Mês/Ano"},
-            color_discrete_sequence=[cor_despesas]  # Vermelho para despesas
-        )
+        # Gráfico 3: Receitas por categoria
+        with col1:
+            if not df_receitas.empty:
+                receitas_por_categoria = df_receitas.groupby("Categoria")["ValorTotal"].sum().reset_index()
+                fig_receitas_categoria = px.bar(
+                    receitas_por_categoria,
+                    x="Categoria",
+                    y="ValorTotal",
+                    text="ValorTotal",
+                    title="Receitas por Categoria",
+                    color_discrete_sequence=[cor_receitas]
+                )
+                fig_receitas_categoria.update_traces(textposition="outside")
+                fig_receitas_categoria.update_yaxes(showgrid=False, showticklabels=False)
+                st.plotly_chart(fig_receitas_categoria, use_container_width=True)
+
+        # Gráfico 4: Despesas por categoria
+        with col2:
+            if not df_despesas.empty:
+                despesas_por_categoria = df_despesas.groupby("Categoria")["ValorTotal"].sum().reset_index()
+                fig_despesas_categoria = px.bar(
+                    despesas_por_categoria,
+                    x="Categoria",
+                    y="ValorTotal",
+                    text="ValorTotal",
+                    title="Despesas por Categoria",
+                    color_discrete_sequence=[cor_despesas]
+                )
+                fig_despesas_categoria.update_traces(textposition="outside")
+                fig_despesas_categoria.update_yaxes(showgrid=False, showticklabels=False)
+                st.plotly_chart(fig_despesas_categoria, use_container_width=True)
         
-        fig_despesas_mes_ano.update_traces(textposition="outside")  # Posiciona rótulos fora das barras
-        fig_despesas_mes_ano.update_xaxes(
-            tickformat="%b/%Y",
-            dtick="M1"
-        )
-
-        fig_despesas_mes_ano.update_yaxes(showgrid=False, showticklabels=False)  # Remove linhas de grade horizontais
-
+        # Seção 3: Gráficos de Receitas e Despesas por Projeto e Método de Pagamento
+        st.markdown("### Análise por Projeto e Método de Pagamento")
+        col1, col2 = st.columns(2)
         
-        st.plotly_chart(fig_despesas_mes_ano, use_container_width=True)
+        # Gráfico 5: Receitas e despesas por projeto
+        with col1:
+            if not df_receitas.empty or not df_despesas.empty:
+                receitas_por_projeto = df_receitas.groupby("Projeto")["ValorTotal"].sum().reset_index()
+                despesas_por_projeto = df_despesas.groupby("Projeto")["ValorTotal"].sum().reset_index()
+                fig_projetos = px.bar(
+                    pd.concat([receitas_por_projeto.assign(Tipo="Receita"), despesas_por_projeto.assign(Tipo="Despesa")]),
+                    x="Projeto",
+                    y="ValorTotal",
+                    text="ValorTotal",
+                    color="Tipo",
+                    title="Receitas e Despesas por Projeto",
+                    barmode="group",
+                    color_discrete_sequence=[cor_receitas, cor_despesas]
+                )
+                fig_projetos.update_traces(textposition="outside")
+                fig_projetos.update_yaxes(showgrid=False, showticklabels=False)
+                st.plotly_chart(fig_projetos, use_container_width=True)
 
-    # Gráfico 3: Receitas por categoria
-    if not df_receitas.empty:
-        receitas_por_categoria = df_receitas.groupby("Categoria")["ValorTotal"].sum().reset_index()
-        fig_receitas_categoria = px.bar(
-            receitas_por_categoria,
-            x="Categoria",
-            y="ValorTotal",
-            text="ValorTotal",
-            title="Receitas por Categoria",
-            color_discrete_sequence=[cor_receitas]  # Verde para receitas
-        )
+        # Gráfico 6: Receitas e despesas por método de pagamento
+        with col2:
+            if not df_receitas.empty or not df_despesas.empty:
+                receitas_por_metodo = df_receitas.groupby("FormaPagamento")["ValorTotal"].sum().reset_index()
+                despesas_por_metodo = df_despesas.groupby("FormaPagamento")["ValorTotal"].sum().reset_index()
+                fig_metodo_pagamento = px.bar(
+                    pd.concat([receitas_por_metodo.assign(Tipo="Receita"), despesas_por_metodo.assign(Tipo="Despesa")]),
+                    x="FormaPagamento",
+                    y="ValorTotal",
+                    text="ValorTotal",
+                    color="Tipo",
+                    title="Receitas e Despesas por Método de Pagamento",
+                    barmode="group",
+                    color_discrete_sequence=[cor_receitas, cor_despesas]
+                )
+                fig_metodo_pagamento.update_traces(textposition="outside")
+                fig_metodo_pagamento.update_yaxes(showgrid=False, showticklabels=False)
+                st.plotly_chart(fig_metodo_pagamento, use_container_width=True)
+        
+        # Seção 4: Gráficos de Despesas por Responsável e Fornecedor
+        st.markdown("### Análise de Despesas")
+        col1, col2 = st.columns(2)
+        
+        # Gráfico 7: Despesas por responsável
+        with col1:
+            if not df_despesas.empty:
+                despesas_por_responsavel = df_despesas.groupby("Responsável")["ValorTotal"].sum().reset_index()
+                fig_despesas_responsavel = px.bar(
+                    despesas_por_responsavel,
+                    x="Responsável",
+                    y="ValorTotal",
+                    text="ValorTotal",
+                    title="Despesas por Responsável",
+                    color_discrete_sequence=[cor_despesas]
+                )
+                fig_despesas_responsavel.update_traces(textposition="outside")
+                fig_despesas_responsavel.update_yaxes(showgrid=False, showticklabels=False)
+                st.plotly_chart(fig_despesas_responsavel, use_container_width=True)
 
-        fig_receitas_categoria.update_traces(textposition="outside")  # Posiciona rótulos fora das barras
-        fig_receitas_categoria.update_yaxes(showgrid=False, showticklabels=False)  # Remove linhas de grade horizontais
-
-        st.plotly_chart(fig_receitas_categoria, use_container_width=True)
-
-    # Gráfico 4: Despesas por categoria
-    if not df_despesas.empty:
-        despesas_por_categoria = df_despesas.groupby("Categoria")["ValorTotal"].sum().reset_index()
-        fig_despesas_categoria = px.bar(
-            despesas_por_categoria,
-            x="Categoria",
-            y="ValorTotal",
-            text="ValorTotal",
-            title="Despesas por Categoria",
-            color_discrete_sequence=[cor_despesas]  # Vermelho para despesas
-        )
-
-        fig_despesas_categoria.update_traces(textposition="outside")  # Posiciona rótulos fora das barras
-        fig_despesas_categoria.update_yaxes(showgrid=False, showticklabels=False)  # Remove linhas de grade horizontais
-
-        st.plotly_chart(fig_despesas_categoria, use_container_width=True)
-
-    # Gráfico 5: Receitas e despesas por projeto
-    if not df_receitas.empty or not df_despesas.empty:
-        receitas_por_projeto = df_receitas.groupby("Projeto")["ValorTotal"].sum().reset_index()
-        despesas_por_projeto = df_despesas.groupby("Projeto")["ValorTotal"].sum().reset_index()
-        fig_projetos = px.bar(
-            pd.concat([receitas_por_projeto.assign(Tipo="Receita"), despesas_por_projeto.assign(Tipo="Despesa")]),
-            x="Projeto",
-            y="ValorTotal",
-            text="ValorTotal",
-            color="Tipo",  # Usa cores diferentes para receitas e despesas
-            title="Receitas e Despesas por Projeto",
-            barmode="group",
-            color_discrete_sequence=[cor_receitas, cor_despesas]  # Verde para receitas, vermelho para despesas
-        )
-
-        fig_projetos.update_traces(textposition="outside")  # Posiciona rótulos fora das barras
-        fig_projetos.update_yaxes(showgrid=False, showticklabels=False)  # Remove linhas de grade horizontais
-
-        st.plotly_chart(fig_projetos, use_container_width=True)
-
-    # Gráfico 6: Receitas e despesas por método de pagamento
-    if not df_receitas.empty or not df_despesas.empty:
-        receitas_por_metodo = df_receitas.groupby("FormaPagamento")["ValorTotal"].sum().reset_index()
-        despesas_por_metodo = df_despesas.groupby("FormaPagamento")["ValorTotal"].sum().reset_index()
-        fig_metodo_pagamento = px.bar(
-            pd.concat([receitas_por_metodo.assign(Tipo="Receita"), despesas_por_metodo.assign(Tipo="Despesa")]),
-            x="FormaPagamento",
-            y="ValorTotal",
-            text="ValorTotal",
-            color="Tipo",  # Usa cores diferentes para receitas e despesas
-            title="Receitas e Despesas por Método de Pagamento",
-            barmode="group",
-            color_discrete_sequence=[cor_receitas, cor_despesas]  # Verde para receitas, vermelho para despesas
-        )
-
-        fig_metodo_pagamento.update_traces(textposition="outside")  # Posiciona rótulos fora das barras
-        fig_metodo_pagamento.update_yaxes(showgrid=False, showticklabels=False)  # Remove linhas de grade horizontais
-
-        st.plotly_chart(fig_metodo_pagamento, use_container_width=True)
-
-    # Gráfico 7: Despesas por responsável
-    if not df_despesas.empty:
-        despesas_por_responsavel = df_despesas.groupby("Responsável")["ValorTotal"].sum().reset_index()
-        fig_despesas_responsavel = px.bar(
-            despesas_por_responsavel,
-            x="Responsável",
-            y="ValorTotal",
-            text="ValorTotal",
-            title="Despesas por Responsável",
-            color_discrete_sequence=[cor_despesas]  # Vermelho para despesas
-        )
-
-        fig_despesas_responsavel.update_traces(textposition="outside")  # Posiciona rótulos fora das barras
-        fig_despesas_responsavel.update_yaxes(showgrid=False, showticklabels=False)  # Remove linhas de grade horizontais
-
-        st.plotly_chart(fig_despesas_responsavel, use_container_width=True)
-
-    # Gráfico 8: Despesas por fornecedor
-    if not df_despesas.empty:
-        despesas_por_fornecedor = df_despesas.groupby("Fornecedor")["ValorTotal"].sum().reset_index()
-        fig_despesas_fornecedor = px.bar(
-            despesas_por_fornecedor,
-            x="Fornecedor",
-            y="ValorTotal",
-            text="ValorTotal",
-            title="Despesas por Fornecedor",
-            color_discrete_sequence=[cor_despesas]  # Vermelho para despesas
-        )
-
-        fig_despesas_fornecedor.update_traces(textposition="outside")  # Posiciona rótulos fora das barras
-        fig_despesas_fornecedor.update_yaxes(showgrid=False, showticklabels=False)  # Remove linhas de grade horizontais
-
-        st.plotly_chart(fig_despesas_fornecedor, use_container_width=True)
-
-    # 9. Quantidade de projetos por localização
-    if not df_projetos.empty:
-        projetos_por_localizacao = df_projetos["Localizacao"].value_counts().reset_index()
-        projetos_por_localizacao.columns = ["Localizacao", "Quantidade"]
-        fig_projetos_localizacao = px.bar(
-            projetos_por_localizacao,
-            x="Localizacao",
-            y="Quantidade",
-            text="Quantidade",
-            title="Quantidade de Projetos por Localização"
-        )
-
-        fig_projetos_localizacao.update_traces(textposition="outside")  # Posiciona rótulos fora das barras
-        fig_projetos_localizacao.update_yaxes(showgrid=False, showticklabels=False)  # Remove linhas de grade horizontais
-
-        st.plotly_chart(fig_projetos_localizacao, use_container_width=True)
-
-    # 10. Quantidade de projetos com placa e sem placa
-    if not df_projetos.empty:
-        projetos_placa = df_projetos["Placa"].value_counts().reset_index()
-        projetos_placa.columns = ["Placa", "Quantidade"]
-        fig_projetos_placa = px.pie(
-            projetos_placa,
-            names="Placa",
-            values="Quantidade",
-            title="Quantidade de Projetos com Placa e sem Placa"
-        )
-        st.plotly_chart(fig_projetos_placa, use_container_width=True)
-
-    # 11. Quantidade de projetos com post e sem post
-    if not df_projetos.empty:
-        projetos_post = df_projetos["Post"].value_counts().reset_index()
-        projetos_post.columns = ["Post", "Quantidade"]
-        fig_projetos_post = px.pie(
-            projetos_post,
-            names="Post",
-            values="Quantidade",
-            title="Quantidade de Projetos com Post e sem Post"
-        )
-        st.plotly_chart(fig_projetos_post, use_container_width=True)
-
-    # 12. Quantidade de projetos com contrato e sem contrato
-    if not df_projetos.empty:
-        projetos_contrato = df_projetos["Contrato"].value_counts().reset_index()
-        projetos_contrato.columns = ["Contrato", "Quantidade"]
-        fig_projetos_contrato = px.pie(
-            projetos_contrato,
-            names="Contrato",
-            values="Quantidade",
-            title="Quantidade de Projetos com Contrato e sem Contrato"
-        )
-        st.plotly_chart(fig_projetos_contrato, use_container_width=True)
-
-    # 13. Quantidade de projetos pelo status
-    if not df_projetos.empty:
-        projetos_status = df_projetos["Status"].value_counts().reset_index()
-        projetos_status.columns = ["Status", "Quantidade"]
-        fig_projetos_status = px.bar(
-            projetos_status,
-            x="Status",
-            y="Quantidade",
-            text="Quantidade",
-            title="Quantidade de Projetos por Status"
-        )
-
-        fig_projetos_status.update_traces(textposition="outside")  # Posiciona rótulos fora das barras
-        fig_projetos_status.update_yaxes(showgrid=False, showticklabels=False)  # Remove linhas de grade horizontais
-
-        st.plotly_chart(fig_projetos_status, use_container_width=True)
-
-    # 14. Quantidade de projetos pelo briefing
-    if not df_projetos.empty:
-        projetos_briefing = df_projetos["Briefing"].value_counts().reset_index()
-        projetos_briefing.columns = ["Briefing", "Quantidade"]
-        fig_projetos_briefing = px.pie(
-            projetos_briefing,
-            names="Briefing",
-            values="Quantidade",
-            title="Quantidade de Projetos por Briefing"
-        )
-        st.plotly_chart(fig_projetos_briefing, use_container_width=True)
-
-    # 15. Quantidade de projetos por arquiteto
-    if not df_projetos.empty:
-        projetos_arquiteto = df_projetos["Arquiteto"].value_counts().reset_index()
-        projetos_arquiteto.columns = ["Arquiteto", "Quantidade"]
-        fig_projetos_arquiteto = px.bar(
-            projetos_arquiteto,
-            x="Arquiteto",
-            y="Quantidade",
-            text="Quantidade",
-            title="Quantidade de Projetos por Arquiteto"
-        )
-
-        fig_projetos_arquiteto.update_traces(textposition="outside")  # Posiciona rótulos fora das barras
-        fig_projetos_arquiteto.update_yaxes(showgrid=False, showticklabels=False)  # Remove linhas de grade horizontais
-
-        st.plotly_chart(fig_projetos_arquiteto, use_container_width=True)
-
-    # 16. Quantidade de projetos pelo tipo
-    if not df_projetos.empty:
-        projetos_tipo = df_projetos["Tipo"].value_counts().reset_index()
-        projetos_tipo.columns = ["Tipo", "Quantidade"]
-        fig_projetos_tipo = px.bar(
-            projetos_tipo,
-            x="Tipo",
-            y="Quantidade",
-            text="Quantidade",
-            title="Quantidade de Projetos por Tipo"
-        )
-
-        fig_projetos_tipo.update_traces(textposition="outside")  # Posiciona rótulos fora das barras
-        fig_projetos_tipo.update_yaxes(showgrid=False, showticklabels=False)  # Remove linhas de grade horizontais
-
-        st.plotly_chart(fig_projetos_tipo, use_container_width=True)
-
-    # 17. Quantidade de projetos pelo pacote
-    if not df_projetos.empty:
-        projetos_pacote = df_projetos["Pacote"].value_counts().reset_index()
-        projetos_pacote.columns = ["Pacote", "Quantidade"]
-        fig_projetos_pacote = px.bar(
-            projetos_pacote,
-            x="Pacote",
-            y="Quantidade",
-            text="Quantidade",
-            title="Quantidade de Projetos por Pacote"
-        )
-
-        fig_projetos_pacote.update_traces(textposition="outside")  # Posiciona rótulos fora das barras
-        fig_projetos_pacote.update_yaxes(showgrid=False, showticklabels=False)  # Remove linhas de grade horizontais
-
-        st.plotly_chart(fig_projetos_pacote, use_container_width=True)
-
-    # 18. m2 pelo responsável elétrico
-    if not df_projetos.empty:
-        m2_responsavel_eletrico = df_projetos.groupby("ResponsávelElétrico")["m2"].sum().reset_index()
-        fig_m2_eletrico = px.bar(
-            m2_responsavel_eletrico,
-            x="ResponsávelElétrico",
-            y="m2",
-            text="m2",
-            title="m² por Responsável Elétrico"
-        )
-
-        fig_m2_eletrico.update_traces(textposition="outside")  # Posiciona rótulos fora das barras
-        fig_m2_eletrico.update_yaxes(showgrid=False, showticklabels=False)  # Remove linhas de grade horizontais
-
-        st.plotly_chart(fig_m2_eletrico, use_container_width=True)
-
-    # 19. m2 pelo responsável hidráulico
-    if not df_projetos.empty:
-        m2_responsavel_hidraulico = df_projetos.groupby("ResponsávelHidráulico")["m2"].sum().reset_index()
-        fig_m2_hidraulico = px.bar(
-            m2_responsavel_hidraulico,
-            x="ResponsávelHidráulico",
-            y="m2",
-            text="m2",
-            title="m² por Responsável Hidráulico"
-        )
-
-        fig_m2_hidraulico.update_traces(textposition="outside")  # Posiciona rótulos fora das barras
-        fig_m2_hidraulico.update_yaxes(showgrid=False, showticklabels=False)  # Remove linhas de grade horizontais
-
-        st.plotly_chart(fig_m2_hidraulico, use_container_width=True)
-
-    # 20. m2 pelo responsável de modelagem
-    if not df_projetos.empty:
-        m2_responsavel_modelagem = df_projetos.groupby("ResponsávelModelagem")["m2"].sum().reset_index()
-        fig_m2_modelagem = px.bar(
-            m2_responsavel_modelagem,
-            x="ResponsávelModelagem",
-            y="m2",
-            text="m2",
-            title="m² por Responsável de Modelagem"
-        )
-
-        fig_m2_modelagem.update_traces(textposition="outside")  # Posiciona rótulos fora das barras
-        fig_m2_modelagem.update_yaxes(showgrid=False, showticklabels=False)  # Remove linhas de grade horizontais
-
-        st.plotly_chart(fig_m2_modelagem, use_container_width=True)
-
-    # 21. m2 pelo responsável de detalhamento
-    if not df_projetos.empty:
-        m2_responsavel_detalhamento = df_projetos.groupby("ResponsávelDetalhamento")["m2"].sum().reset_index()
-        fig_m2_detalhamento = px.bar(
-            m2_responsavel_detalhamento,
-            x="ResponsávelDetalhamento",
-            y="m2",
-            text="m2",
-            title="m² por Responsável de Detalhamento"
-        )
-
-        fig_m2_detalhamento.update_traces(textposition="outside")  # Posiciona rótulos fora das barras
-        fig_m2_detalhamento.update_yaxes(showgrid=False, showticklabels=False)  # Remove linhas de grade horizontais
-
-        st.plotly_chart(fig_m2_detalhamento, use_container_width=True)
+        # Gráfico 8: Despesas por fornecedor
+        with col2:
+            if not df_despesas.empty:
+                despesas_por_fornecedor = df_despesas.groupby("Fornecedor")["ValorTotal"].sum().reset_index()
+                fig_despesas_fornecedor = px.bar(
+                    despesas_por_fornecedor,
+                    x="Fornecedor",
+                    y="ValorTotal",
+                    text="ValorTotal",
+                    title="Despesas por Fornecedor",
+                    color_discrete_sequence=[cor_despesas]
+                )
+                fig_despesas_fornecedor.update_traces(textposition="outside")
+                fig_despesas_fornecedor.update_yaxes(showgrid=False, showticklabels=False)
+                st.plotly_chart(fig_despesas_fornecedor, use_container_width=True)
+    
+    with tabs[1]:  # Aba Projetos
+        st.subheader("Análise de Projetos")
+        
+        # Seção 1: Localização e Status
+        st.markdown("### Localização e Status")
+        col1, col2 = st.columns(2)
+        
+        # Gráfico 9: Quantidade de projetos por localização
+        with col1:
+            if not df_projetos.empty:
+                projetos_por_localizacao = df_projetos["Localizacao"].value_counts().reset_index()
+                projetos_por_localizacao.columns = ["Localizacao", "Quantidade"]
+                fig_projetos_localizacao = px.bar(
+                    projetos_por_localizacao,
+                    x="Localizacao",
+                    y="Quantidade",
+                    text="Quantidade",
+                    title="Quantidade de Projetos por Localização"
+                )
+                fig_projetos_localizacao.update_traces(textposition="outside")
+                fig_projetos_localizacao.update_yaxes(showgrid=False, showticklabels=False)
+                st.plotly_chart(fig_projetos_localizacao, use_container_width=True)
+        
+        # Gráfico 13: Quantidade de projetos pelo status
+        with col2:
+            if not df_projetos.empty:
+                projetos_status = df_projetos["Status"].value_counts().reset_index()
+                projetos_status.columns = ["Status", "Quantidade"]
+                fig_projetos_status = px.bar(
+                    projetos_status,
+                    x="Status",
+                    y="Quantidade",
+                    text="Quantidade",
+                    title="Quantidade de Projetos por Status"
+                )
+                fig_projetos_status.update_traces(textposition="outside")
+                fig_projetos_status.update_yaxes(showgrid=False, showticklabels=False)
+                st.plotly_chart(fig_projetos_status, use_container_width=True)
+        
+        # Seção 2: Características dos Projetos
+        st.markdown("### Características dos Projetos")
+        col1, col2, col3 = st.columns(3)
+        
+        # Gráfico 10: Quantidade de projetos com placa e sem placa
+        with col1:
+            if not df_projetos.empty:
+                projetos_placa = df_projetos["Placa"].value_counts().reset_index()
+                projetos_placa.columns = ["Placa", "Quantidade"]
+                fig_projetos_placa = px.pie(
+                    projetos_placa,
+                    names="Placa",
+                    values="Quantidade",
+                    title="Projetos com/sem Placa"
+                )
+                st.plotly_chart(fig_projetos_placa, use_container_width=True)
+        
+        # Gráfico 11: Quantidade de projetos com post e sem post
+        with col2:
+            if not df_projetos.empty:
+                projetos_post = df_projetos["Post"].value_counts().reset_index()
+                projetos_post.columns = ["Post", "Quantidade"]
+                fig_projetos_post = px.pie(
+                    projetos_post,
+                    names="Post",
+                    values="Quantidade",
+                    title="Projetos com/sem Post"
+                )
+                st.plotly_chart(fig_projetos_post, use_container_width=True)
+        
+        # Gráfico 12: Quantidade de projetos com contrato e sem contrato
+        with col3:
+            if not df_projetos.empty:
+                projetos_contrato = df_projetos["Contrato"].value_counts().reset_index()
+                projetos_contrato.columns = ["Contrato", "Quantidade"]
+                fig_projetos_contrato = px.pie(
+                    projetos_contrato,
+                    names="Contrato",
+                    values="Quantidade",
+                    title="Projetos com/sem Contrato"
+                )
+                st.plotly_chart(fig_projetos_contrato, use_container_width=True)
+        
+        # Seção 3: Categorização de Projetos
+        st.markdown("### Categorização de Projetos")
+        col1, col2 = st.columns(2)
+        
+        # Gráfico 14: Quantidade de projetos pelo briefing
+        with col1:
+            if not df_projetos.empty:
+                projetos_briefing = df_projetos["Briefing"].value_counts().reset_index()
+                projetos_briefing.columns = ["Briefing", "Quantidade"]
+                fig_projetos_briefing = px.pie(
+                    projetos_briefing,
+                    names="Briefing",
+                    values="Quantidade",
+                    title="Projetos por Briefing"
+                )
+                st.plotly_chart(fig_projetos_briefing, use_container_width=True)
+        
+        # Gráfico 16: Quantidade de projetos pelo tipo
+        with col2:
+            if not df_projetos.empty:
+                projetos_tipo = df_projetos["Tipo"].value_counts().reset_index()
+                projetos_tipo.columns = ["Tipo", "Quantidade"]
+                fig_projetos_tipo = px.bar(
+                    projetos_tipo,
+                    x="Tipo",
+                    y="Quantidade",
+                    text="Quantidade",
+                    title="Projetos por Tipo"
+                )
+                fig_projetos_tipo.update_traces(textposition="outside")
+                fig_projetos_tipo.update_yaxes(showgrid=False, showticklabels=False)
+                st.plotly_chart(fig_projetos_tipo, use_container_width=True)
+        
+        # Seção 4: Arquitetos e Pacotes
+        st.markdown("### Arquitetos e Pacotes")
+        col1, col2 = st.columns(2)
+        
+        # Gráfico 15: Quantidade de projetos por arquiteto
+        with col1:
+            if not df_projetos.empty:
+                projetos_arquiteto = df_projetos["Arquiteto"].value_counts().reset_index()
+                projetos_arquiteto.columns = ["Arquiteto", "Quantidade"]
+                fig_projetos_arquiteto = px.bar(
+                    projetos_arquiteto,
+                    x="Arquiteto",
+                    y="Quantidade",
+                    text="Quantidade",
+                    title="Projetos por Arquiteto"
+                )
+                fig_projetos_arquiteto.update_traces(textposition="outside")
+                fig_projetos_arquiteto.update_yaxes(showgrid=False, showticklabels=False)
+                st.plotly_chart(fig_projetos_arquiteto, use_container_width=True)
+        
+        # Gráfico 17: Quantidade de projetos pelo pacote
+        with col2:
+            if not df_projetos.empty:
+                projetos_pacote = df_projetos["Pacote"].value_counts().reset_index()
+                projetos_pacote.columns = ["Pacote", "Quantidade"]
+                fig_projetos_pacote = px.bar(
+                    projetos_pacote,
+                    x="Pacote",
+                    y="Quantidade",
+                    text="Quantidade",
+                    title="Projetos por Pacote"
+                )
+                fig_projetos_pacote.update_traces(textposition="outside")
+                fig_projetos_pacote.update_yaxes(showgrid=False, showticklabels=False)
+                st.plotly_chart(fig_projetos_pacote, use_container_width=True)
+    
+    with tabs[2]:  # Aba Responsáveis
+        st.subheader("Análise por Responsáveis")
+        
+        # Seção 1: m² por Responsáveis
+        st.markdown("### Metros Quadrados por Responsável")
+        col1, col2 = st.columns(2)
+        
+        # Gráfico 18: m2 pelo responsável elétrico
+        with col1:
+            if not df_projetos.empty:
+                m2_responsavel_eletrico = df_projetos.groupby("ResponsávelElétrico")["m2"].sum().reset_index()
+                fig_m2_eletrico = px.bar(
+                    m2_responsavel_eletrico,
+                    x="ResponsávelElétrico",
+                    y="m2",
+                    text="m2",
+                    title="m² por Responsável Elétrico"
+                )
+                fig_m2_eletrico.update_traces(textposition="outside")
+                fig_m2_eletrico.update_yaxes(showgrid=False, showticklabels=False)
+                st.plotly_chart(fig_m2_eletrico, use_container_width=True)
+        
+        # Gráfico 19: m2 pelo responsável hidráulico
+        with col2:
+            if not df_projetos.empty:
+                m2_responsavel_hidraulico = df_projetos.groupby("ResponsávelHidráulico")["m2"].sum().reset_index()
+                fig_m2_hidraulico = px.bar(
+                    m2_responsavel_hidraulico,
+                    x="ResponsávelHidráulico",
+                    y="m2",
+                    text="m2",
+                    title="m² por Responsável Hidráulico"
+                )
+                fig_m2_hidraulico.update_traces(textposition="outside")
+                fig_m2_hidraulico.update_yaxes(showgrid=False, showticklabels=False)
+                st.plotly_chart(fig_m2_hidraulico, use_container_width=True)
+        
+        # Seção 2: Mais m² por Responsáveis
+        col1, col2 = st.columns(2)
+        
+        # Gráfico 20: m2 pelo responsável de modelagem
+        with col1:
+            if not df_projetos.empty:
+                m2_responsavel_modelagem = df_projetos.groupby("ResponsávelModelagem")["m2"].sum().reset_index()
+                fig_m2_modelagem = px.bar(
+                    m2_responsavel_modelagem,
+                    x="ResponsávelModelagem",
+                    y="m2",
+                    text="m2",
+                    title="m² por Responsável de Modelagem"
+                )
+                fig_m2_modelagem.update_traces(textposition="outside")
+                fig_m2_modelagem.update_yaxes(showgrid=False, showticklabels=False)
+                st.plotly_chart(fig_m2_modelagem, use_container_width=True)
+        
+        # Gráfico 21: m2 pelo responsável de detalhamento
+        with col2:
+            if not df_projetos.empty:
+                m2_responsavel_detalhamento = df_projetos.groupby("ResponsávelDetalhamento")["m2"].sum().reset_index()
+                fig_m2_detalhamento = px.bar(
+                    m2_responsavel_detalhamento,
+                    x="ResponsávelDetalhamento",
+                    y="m2",
+                    text="m2",
+                    title="m² por Responsável de Detalhamento"
+                )
+                fig_m2_detalhamento.update_traces(textposition="outside")
+                fig_m2_detalhamento.update_yaxes(showgrid=False, showticklabels=False)
+                st.plotly_chart(fig_m2_detalhamento, use_container_width=True)
 
 ########################################## RELATÓRIOS ##########################################
 
