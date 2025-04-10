@@ -110,16 +110,22 @@ SHEET_GIDS = {
     "Receitas": "0",
     "Despesas": "2095402559",
     "Projetos": "1967040877",
-    "Categorias_Receita": "70356418",
-    "Fornecedor_Despesa": "62015063"
+    "Categorias_Receitas": "689806911",
+    "Categorias_Despesas": "1610275753",
+    "Fornecedor_Despesas": "1183581777",
+    "Clientes": "1538370660",
+    "Funcionarios": "1993815508"
 }
 
 COLUNAS_ESPERADAS = {
     "Receitas": ["DataRecebimento", "Descrição", "Projeto", "Categoria", "ValorTotal", "FormaPagamento", "NF"],
     "Despesas": ["DataPagamento", "Descrição", "Categoria", "ValorTotal", "Parcelas", "FormaPagamento", "Responsável", "Fornecedor", "Projeto", "NF"],
     "Projetos": ["Projeto", "Cliente", "Localizacao", "Placa", "Post", "DataInicio", "DataFinal", "Contrato", "Status", "Briefing", "Arquiteto", "Tipo", "Pacote", "m2", "Parcelas", "ValorTotal", "ResponsávelElétrico", "ResponsávelHidráulico", "ResponsávelModelagem", "ResponsávelDetalhamento"],
-    "Categorias_Receita": ["Data", "Solicitante", "Biologico", "Quimico", "Observacoes", "Status"],
-    "Fornecedor_Despesa": ["Data", "Biologico", "Quimico", "Tempo", "Placa1", "Placa2", "Placa3", "MédiaPlacas", "Diluicao", "ConcObtida", "Dose", "ConcAtivo", "VolumeCalda", "ConcEsperada", "Razao", "Resultado"]
+    "Funcionarios": ["Nome", "Cargo", "Admissão", "Salário", "Contato", "Endereço"],    
+    "Clientes": ["Nome", "CPF", "Endereço", "Contato", "TipoNF"],
+    "Categorias_Receitas": ["Categoria"],
+    "Categorias_Despesas": ["Categoria"],
+    "Fornecedor_Despesas": ["Fornecedor"]
 }
 
 ########################################## DADOS ##########################################
@@ -131,7 +137,10 @@ if 'local_data' not in st.session_state:
         'despesas': pd.DataFrame(),
         'projetos': pd.DataFrame(),
         'categorias_receitas': pd.DataFrame(),
-        'fornecedor_despesas': pd.DataFrame()
+        'categorias_despesas': pd.DataFrame(),
+        'fornecedor_despesas': pd.DataFrame(),
+        'clientes': pd.DataFrame(),
+        'funcionarios': pd.DataFrame()
     }
 
 # Flag para controlar se os dados já foram carregados
@@ -235,7 +244,10 @@ def carregar_dados_sheets(sheet_name, force_reload=False):
         # Dados padrão para retornar em caso de falha
         default_data = {
             "Categorias_Receitas": pd.DataFrame({"Categoria": ["Pró-Labore", "Investimentos", "Freelance", "Outros"]}),
-            "Fornecedor_Despesas": pd.DataFrame({"Fornecedor": ["Outros"]})
+            "Categorias_Despesas": pd.DataFrame({"Categoria": ["Fixo", "Variável", "Investimento", "Outros"]}),
+            "Fornecedor_Despesas": pd.DataFrame({"Fornecedor": ["Outros"]}),
+            "Clientes": pd.DataFrame({"Nome": [""], "CPF": [""]}),
+            "Funcionarios": pd.DataFrame({"Nome": [""]})
         }
         
         # Conectar ao Google Sheets
@@ -295,6 +307,19 @@ def carregar_dados_sheets(sheet_name, force_reload=False):
                         # Adicionar ao cache de worksheets
                         st.session_state.worksheets_cache[sheet_name] = worksheet
                         return df
+                    elif sheet_name == "Categorias_Despesas":
+                        worksheet = spreadsheet.add_worksheet(title=sheet_name, rows=100, cols=20)
+                        # Adicionar cabeçalho
+                        worksheet.append_row(["Categoria"])
+                        # Adicionar categorias padrão
+                        for categoria in ["Fixo", "Variável", "Investimento", "Outros"]:
+                            worksheet.append_row([categoria])
+                        df = default_data["Categorias_Despesas"]
+                        # Armazenar no cache da sessão
+                        st.session_state.local_data[sheet_name.lower()] = df
+                        # Adicionar ao cache de worksheets
+                        st.session_state.worksheets_cache[sheet_name] = worksheet
+                        return df
                     elif sheet_name == "Fornecedor_Despesas":
                         worksheet = spreadsheet.add_worksheet(title=sheet_name, rows=100, cols=20)
                         # Adicionar cabeçalho
@@ -307,9 +332,29 @@ def carregar_dados_sheets(sheet_name, force_reload=False):
                         # Adicionar ao cache de worksheets
                         st.session_state.worksheets_cache[sheet_name] = worksheet
                         return df
+                    elif sheet_name == "Clientes":
+                        worksheet = spreadsheet.add_worksheet(title=sheet_name, rows=100, cols=20)
+                        # Adicionar cabeçalho
+                        worksheet.append_row(["Nome", "CPF", "Endereço", "Contato", "TipoNF"])
+                        df = default_data["Clientes"]
+                        # Armazenar no cache da sessão
+                        st.session_state.local_data[sheet_name.lower()] = df
+                        # Adicionar ao cache de worksheets
+                        st.session_state.worksheets_cache[sheet_name] = worksheet
+                        return df
+                    elif sheet_name == "Funcionarios":
+                        worksheet = spreadsheet.add_worksheet(title=sheet_name, rows=100, cols=20)
+                        # Adicionar cabeçalho
+                        worksheet.append_row(["Nome", "Cargo", "Admissão", "Salário", "Contato", "Endereço"])
+                        df = default_data["Funcionarios"]
+                        # Armazenar no cache da sessão
+                        st.session_state.local_data[sheet_name.lower()] = df
+                        # Adicionar ao cache de worksheets
+                        st.session_state.worksheets_cache[sheet_name] = worksheet
+                        return df
                     else:
                         return pd.DataFrame()
-                except Exception as create_error:
+                except Exception as e:
                     # Se não conseguir criar, retorna dados padrão se disponíveis
                     if sheet_name in default_data:
                         df = default_data[sheet_name]
@@ -597,6 +642,10 @@ def carregar_dados_sob_demanda(sheet_name):
                               "Descrição": [], "Categoria": [], "ValorTotal": []})
         elif sheet_name == "Projetos":
             df = pd.DataFrame({"Projeto": [], "Cliente": [], "Status": []})
+        elif sheet_name == "Clientes":
+            df = pd.DataFrame({"Nome": [], "CPF": [], "Endereço": [], "Contato": [], "TipoNF": []})
+        elif sheet_name == "Funcionarios":
+            df = pd.DataFrame({"Nome": [], "Cargo": [], "Admissão": [], "Salário": [], "Contato": [], "Endereço": []})
         else:
             df = pd.DataFrame()
         
@@ -851,7 +900,6 @@ def salvar_projetos(df):
         resultado = salvar_dados_sheets(df, "Projetos")
         if resultado:
             st.session_state.local_data['projetos'] = df
-            st.success("Alterações salvas com sucesso!")
             return True
         else:
             st.error("Erro ao salvar os projetos.")
@@ -922,165 +970,242 @@ def registrar_cliente():
     st.subheader("👤 Registrar Cliente")
     
     # Carregar dados existentes
-    df_clientes = carregar_dados_sob_demanda("Clientes")
-    
-    # Verificar se o DataFrame está vazio ou não existe
-    if df_clientes.empty:
-        df_clientes = pd.DataFrame(columns=["Nome", "CPF", "Endereço", "Contato", "TipoNF"])
-    
-    # Formulário para adicionar novo cliente
-    with st.form("novo_cliente"):
-        col1, col2 = st.columns(2)
+    try:
+        df_clientes = carregar_dados_sob_demanda("Clientes")
         
-        with col1:
-            nome = st.text_input("Nome")
-            cpf = st.text_input("CPF")
-            endereco = st.text_input("Endereço")
+        # Verificar se o DataFrame está vazio ou não existe
+        if df_clientes.empty:
+            df_clientes = pd.DataFrame(columns=["Nome", "CPF", "Endereço", "Contato", "TipoNF"])
         
-        with col2:
-            contato = st.text_input("Contato")
-            tipo_nf = st.selectbox("Tipo de Nota Fiscal", ["Pessoa Física", "Pessoa Jurídica", "Não Aplicável"])
+        # Converter todas as colunas para string para evitar problemas de tipo
+        for col in df_clientes.columns:
+            df_clientes[col] = df_clientes[col].astype(str)
         
-        submit_cliente = st.form_submit_button("Salvar Cliente")
+        # Flag para controlar se um novo cliente foi adicionado
+        novo_cliente_adicionado = False
+        novo_cliente_dados = {}
         
-        if submit_cliente:
-            # Validar dados
-            if not nome:
-                st.error("O nome do cliente é obrigatório.")
-            else:
-                # Criar dicionário com os dados do novo cliente
-                novo_cliente = {
-                    "Nome": nome,
-                    "CPF": cpf,
-                    "Endereço": endereco,
-                    "Contato": contato,
-                    "TipoNF": tipo_nf
-                }
-                
-                # Adicionar ao Google Sheets
-                if adicionar_linha_sheets(novo_cliente, "Clientes"):
-                    st.success("Cliente registrado com sucesso!")
-                    # Limpar o cache para forçar recarregar os dados
-                    st.session_state.local_data["clientes"] = pd.DataFrame()
+        # Formulário para adicionar novo cliente
+        with st.form("novo_cliente"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                nome = st.text_input("Nome")
+                cpf = st.text_input("CPF")
+                endereco = st.text_input("Endereço")
+            
+            with col2:
+                contato = st.text_input("Contato")
+                tipo_nf = st.selectbox("Tipo de Nota Fiscal", ["Pessoa Física", "Pessoa Jurídica", "Não Aplicável"])
+            
+            submit_cliente = st.form_submit_button("Salvar Cliente")
+            
+            if submit_cliente:
+                # Validar dados
+                if not nome:
+                    st.error("O nome do cliente é obrigatório.")
                 else:
-                    st.error("Erro ao registrar cliente.")
-    
-    # Exibir clientes existentes em uma tabela editável
-    st.subheader("Clientes Cadastrados")
-    
-    if not df_clientes.empty:
-        # Criar uma cópia editável do DataFrame
-        edited_df = st.data_editor(
-            df_clientes,
-            use_container_width=True,
-            num_rows="dynamic",
-            column_config={
-                "Nome": st.column_config.TextColumn("Nome", width="medium"),
-                "CPF": st.column_config.TextColumn("CPF", width="small"),
-                "Endereço": st.column_config.TextColumn("Endereço", width="large"),
-                "Contato": st.column_config.TextColumn("Contato", width="medium"),
-                "TipoNF": st.column_config.SelectboxColumn(
-                    "Tipo NF", 
-                    options=["Pessoa Física", "Pessoa Jurídica", "Não Aplicável"],
-                    width="medium"
+                    # Criar dicionário com os dados do novo cliente
+                    novo_cliente = {
+                        "Nome": nome,
+                        "CPF": str(cpf),  # Garantir que CPF seja string
+                        "Endereço": endereco,
+                        "Contato": contato,
+                        "TipoNF": tipo_nf
+                    }
+                    
+                    # Adicionar ao Google Sheets
+                    try:
+                        if adicionar_linha_sheets(novo_cliente, "Clientes"):
+                            st.success("Cliente registrado com sucesso!")
+                            # Adicionar o novo cliente ao DataFrame local para exibição imediata
+                            novo_cliente_df = pd.DataFrame([novo_cliente])
+                            df_clientes = pd.concat([df_clientes, novo_cliente_df], ignore_index=True)
+                            # Atualizar o cache
+                            st.session_state.local_data["clientes"] = df_clientes
+                            novo_cliente_adicionado = True
+                            novo_cliente_dados = novo_cliente
+                        else:
+                            st.error("Erro ao registrar cliente.")
+                    except Exception as e:
+                        st.error(f"Erro ao registrar cliente: {str(e)}")
+        
+        # Exibir clientes existentes em uma tabela editável
+        st.subheader("Clientes Cadastrados")
+        
+        if not df_clientes.empty:
+            # Garantir que todas as colunas necessárias existam
+            for col in ["Nome", "CPF", "Endereço", "Contato", "TipoNF"]:
+                if col not in df_clientes.columns:
+                    df_clientes[col] = ""
+            
+            # Criar uma cópia editável do DataFrame
+            try:
+                edited_df = st.data_editor(
+                    df_clientes,
+                    use_container_width=True,
+                    num_rows="dynamic",
+                    column_config={
+                        "Nome": st.column_config.TextColumn("Nome", width="medium"),
+                        "CPF": st.column_config.TextColumn("CPF", width="small"),
+                        "Endereço": st.column_config.TextColumn("Endereço", width="large"),
+                        "Contato": st.column_config.TextColumn("Contato", width="medium"),
+                        "TipoNF": st.column_config.SelectboxColumn(
+                            "Tipo NF", 
+                            options=["Pessoa Física", "Pessoa Jurídica", "Não Aplicável"],
+                            width="medium"
+                        )
+                    },
+                    hide_index=True
                 )
-            },
-            hide_index=True
-        )
-        
-        # Verificar se houve alterações no DataFrame
-        if not edited_df.equals(df_clientes):
-            if st.button("Salvar Alterações"):
-                if salvar_dados_sheets(edited_df, "Clientes"):
-                    st.success("Alterações salvas com sucesso!")
-                    # Atualizar o cache
-                    st.session_state.local_data["clientes"] = edited_df
-                else:
-                    st.error("Erro ao salvar alterações.")
-    else:
-        st.info("Nenhum cliente cadastrado.")
+                
+                # Verificar se houve alterações no DataFrame
+                if not edited_df.equals(df_clientes):
+                    if st.button("Salvar Alterações"):
+                        try:
+                            if salvar_dados_sheets(edited_df, "Clientes"):
+                                st.success("Alterações salvas com sucesso!")
+                                # Atualizar o cache
+                                st.session_state.local_data["clientes"] = edited_df
+                            else:
+                                st.error("Erro ao salvar alterações.")
+                        except Exception as e:
+                            st.error(f"Erro ao salvar alterações: {str(e)}")
+            except Exception as e:
+                st.error(f"Erro ao exibir tabela de clientes: {str(e)}")
+                st.info("Tente recarregar a página ou verificar a estrutura dos dados.")
+        else:
+            st.info("Nenhum cliente cadastrado.")
+    except Exception as e:
+        st.error(f"Erro ao acessar a planilha Clientes: {str(e)}. Verifique as credenciais de acesso ao Google Sheets.")
 
 # Função para registrar funcionário
 def registrar_funcionario():
     st.subheader("👷 Registrar Funcionário")
     
     # Carregar dados existentes
-    df_funcionarios = carregar_dados_sob_demanda("Funcionarios")
-    
-    # Verificar se o DataFrame está vazio ou não existe
-    if df_funcionarios.empty:
-        df_funcionarios = pd.DataFrame(columns=["Nome", "Cargo", "Admissão", "Salário", "Contato", "Endereço"])
-    
-    # Formulário para adicionar novo funcionário
-    with st.form("novo_funcionario"):
-        col1, col2 = st.columns(2)
+    try:
+        df_funcionarios = carregar_dados_sob_demanda("Funcionarios")
         
-        with col1:
-            nome = st.text_input("Nome")
-            cargo = st.text_input("Cargo")
-            data_admissao = st.date_input("Data de Admissão", datetime.now())
+        # Verificar se o DataFrame está vazio ou não existe
+        if df_funcionarios.empty:
+            df_funcionarios = pd.DataFrame(columns=["Nome", "Cargo", "Admissão", "Salário", "Contato", "Endereço"])
         
-        with col2:
-            salario = st.number_input("Salário (R$)", min_value=0.0, format="%.2f")
-            contato = st.text_input("Contato")
-            endereco = st.text_input("Endereço")
+        # Formulário para adicionar novo funcionário
+        with st.form("novo_funcionario"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                nome = st.text_input("Nome")
+                cargo = st.text_input("Cargo")
+                data_admissao = st.date_input("Data de Admissão", datetime.now())
+            
+            with col2:
+                salario = st.number_input("Salário (R$)", min_value=0.0, format="%.2f")
+                contato = st.text_input("Contato")
+                endereco = st.text_input("Endereço")
+            
+            submit_funcionario = st.form_submit_button("Salvar Funcionário")
+            
+            if submit_funcionario:
+                # Validar dados
+                if not nome:
+                    st.error("O nome do funcionário é obrigatório.")
+                else:
+                    # Criar dicionário com os dados do novo funcionário
+                    novo_funcionario = {
+                        "Nome": nome,
+                        "Cargo": cargo,
+                        "Admissão": data_admissao.strftime("%d/%m/%Y"),
+                        "Salário": str(salario),  # Converter para string
+                        "Contato": contato,
+                        "Endereço": endereco
+                    }
+                    
+                    # Adicionar diretamente à planilha usando gspread
+                    try:
+                        # Obter a planilha
+                        spreadsheet = conectar_sheets()
+                        if spreadsheet:
+                            # Obter a worksheet
+                            try:
+                                worksheet = spreadsheet.worksheet("Funcionarios")
+                            except:
+                                # Se a worksheet não existir, criar uma nova
+                                worksheet = spreadsheet.add_worksheet(title="Funcionarios", rows=100, cols=20)
+                                # Adicionar cabeçalho
+                                worksheet.append_row(["Nome", "Cargo", "Admissão", "Salário", "Contato", "Endereço"])
+                            
+                            # Adicionar a nova linha
+                            worksheet.append_row([
+                                novo_funcionario["Nome"],
+                                novo_funcionario["Cargo"],
+                                novo_funcionario["Admissão"],
+                                novo_funcionario["Salário"],
+                                novo_funcionario["Contato"],
+                                novo_funcionario["Endereço"]
+                            ])
+                            
+                            st.success("Funcionário registrado com sucesso!")
+                            # Adicionar o novo funcionário ao DataFrame local para exibição imediata
+                            novo_funcionario_df = pd.DataFrame([novo_funcionario])
+                            df_funcionarios = pd.concat([df_funcionarios, novo_funcionario_df], ignore_index=True)
+                            # Atualizar o cache
+                            st.session_state.local_data["funcionarios"] = df_funcionarios
+                        else:
+                            st.error("Erro ao conectar ao Google Sheets. Verifique as credenciais.")
+                    except Exception as e:
+                        st.error(f"Erro ao registrar funcionário: {str(e)}")
         
-        submit_funcionario = st.form_submit_button("Salvar Funcionário")
+        # Exibir funcionários existentes em uma tabela editável
+        st.subheader("Funcionários Cadastrados")
         
-        if submit_funcionario:
-            # Validar dados
-            if not nome:
-                st.error("O nome do funcionário é obrigatório.")
-            else:
-                # Criar dicionário com os dados do novo funcionário
-                novo_funcionario = {
-                    "Nome": nome,
-                    "Cargo": cargo,
-                    "Admissão": data_admissao.strftime("%d/%m/%Y"),
-                    "Salário": salario,
-                    "Contato": contato,
-                    "Endereço": endereco
-                }
+        if not df_funcionarios.empty:
+            # Garantir que todas as colunas necessárias existam
+            for col in ["Nome", "Cargo", "Admissão", "Salário", "Contato", "Endereço"]:
+                if col not in df_funcionarios.columns:
+                    df_funcionarios[col] = ""
+            
+            # Converter todas as colunas para string para evitar problemas de tipo
+            for col in df_funcionarios.columns:
+                df_funcionarios[col] = df_funcionarios[col].astype(str)
+            
+            # Criar uma cópia editável do DataFrame
+            try:
+                edited_df = st.data_editor(
+                    df_funcionarios,
+                    use_container_width=True,
+                    num_rows="dynamic",
+                    column_config={
+                        "Nome": st.column_config.TextColumn("Nome", width="medium"),
+                        "Cargo": st.column_config.TextColumn("Cargo", width="medium"),
+                        "Admissão": st.column_config.TextColumn("Admissão", width="small"),
+                        "Salário": st.column_config.TextColumn("Salário", width="small"),
+                        "Contato": st.column_config.TextColumn("Contato", width="medium"),
+                        "Endereço": st.column_config.TextColumn("Endereço", width="large")
+                    },
+                    hide_index=True
+                )
                 
-                # Adicionar ao Google Sheets
-                if adicionar_linha_sheets(novo_funcionario, "Funcionarios"):
-                    st.success("Funcionário registrado com sucesso!")
-                    # Limpar o cache para forçar recarregar os dados
-                    st.session_state.local_data["funcionarios"] = pd.DataFrame()
-                else:
-                    st.error("Erro ao registrar funcionário.")
-    
-    # Exibir funcionários existentes em uma tabela editável
-    st.subheader("Funcionários Cadastrados")
-    
-    if not df_funcionarios.empty:
-        # Criar uma cópia editável do DataFrame
-        edited_df = st.data_editor(
-            df_funcionarios,
-            use_container_width=True,
-            num_rows="dynamic",
-            column_config={
-                "Nome": st.column_config.TextColumn("Nome", width="medium"),
-                "Cargo": st.column_config.TextColumn("Cargo", width="medium"),
-                "Admissão": st.column_config.TextColumn("Admissão", width="small"),
-                "Salário": st.column_config.NumberColumn("Salário", format="R$ %.2f", width="small"),
-                "Contato": st.column_config.TextColumn("Contato", width="medium"),
-                "Endereço": st.column_config.TextColumn("Endereço", width="large")
-            },
-            hide_index=True
-        )
-        
-        # Verificar se houve alterações no DataFrame
-        if not edited_df.equals(df_funcionarios):
-            if st.button("Salvar Alterações"):
-                if salvar_dados_sheets(edited_df, "Funcionarios"):
-                    st.success("Alterações salvas com sucesso!")
-                    # Atualizar o cache
-                    st.session_state.local_data["funcionarios"] = edited_df
-                else:
-                    st.error("Erro ao salvar alterações.")
-    else:
-        st.info("Nenhum funcionário cadastrado.")
+                # Verificar se houve alterações no DataFrame
+                if not edited_df.equals(df_funcionarios):
+                    if st.button("Salvar Alterações"):
+                        try:
+                            if salvar_dados_sheets(edited_df, "Funcionarios"):
+                                st.success("Alterações salvas com sucesso!")
+                                # Atualizar o cache
+                                st.session_state.local_data["funcionarios"] = edited_df
+                            else:
+                                st.error("Erro ao salvar alterações. Verifique as credenciais de acesso ao Google Sheets.")
+                        except Exception as e:
+                            st.error(f"Erro ao salvar alterações: {str(e)}")
+            except Exception as e:
+                st.error(f"Erro ao exibir tabela de funcionários: {str(e)}")
+                st.info("Tente recarregar a página ou verificar a estrutura dos dados.")
+        else:
+            st.info("Nenhum funcionário cadastrado.")
+    except Exception as e:
+        st.error(f"Erro ao acessar a planilha Funcionarios: {str(e)}. Verifique as credenciais de acesso ao Google Sheets.")
 
 # Função para registrar categoria
 def registrar_categoria():
@@ -1257,27 +1382,37 @@ def registrar_fornecedor():
                 st.error("Erro ao salvar alterações.")
 
 def registrar():
-    # st.title("📝 Registrar")
-
-    # Seletor para escolher o tipo de registro
-    tipo_registro = st.radio(
-        "O que você deseja registrar?",
-        ("Receita", "Despesa", "Projeto", "Cliente", "Funcionário", "Categoria", "Fornecedor")
-    )
-
-    if tipo_registro == "Receita":
+    st.title("📝 Registrar")
+    
+    # Criar abas para os diferentes tipos de registro
+    tabs = st.tabs(["Receita", "Despesa", "Projeto", "Cliente", "Funcionário", "Categoria", "Fornecedor"])
+    
+    # Conteúdo da aba Receita
+    with tabs[0]:
         registrar_receita()
-    elif tipo_registro == "Despesa":
+    
+    # Conteúdo da aba Despesa
+    with tabs[1]:
         registrar_despesa()
-    elif tipo_registro == "Projeto":
+    
+    # Conteúdo da aba Projeto
+    with tabs[2]:
         registrar_projeto()
-    elif tipo_registro == "Cliente":
+    
+    # Conteúdo da aba Cliente
+    with tabs[3]:
         registrar_cliente()
-    elif tipo_registro == "Funcionário":
+    
+    # Conteúdo da aba Funcionário
+    with tabs[4]:
         registrar_funcionario()
-    elif tipo_registro == "Categoria":
+    
+    # Conteúdo da aba Categoria
+    with tabs[5]:
         registrar_categoria()
-    elif tipo_registro == "Fornecedor":
+    
+    # Conteúdo da aba Fornecedor
+    with tabs[6]:
         registrar_fornecedor()
 
 ########################################## DASHBOARD ##########################################
@@ -1381,7 +1516,7 @@ def dashboard():
     
     with tabs[0]:  # Aba Financeiro
         # Seção 1: Gráficos de Receitas e Despesas por Mês/Ano
-        st.markdown("### Análise Temporal")
+        st.markdown("### Análise Mensal")
         col1, col2 = st.columns(2)
         
         # Gráfico 1: Quantidade de receitas por mês/ano
@@ -1864,6 +1999,25 @@ def projetos():
     # Carrega os projetos do Google Sheets
     df_projetos = carregar_projetos()
     
+    # Converter datas para formato consistente
+    if not df_projetos.empty:
+        # Garantir que as colunas de data existam
+        if "DataInicio" in df_projetos.columns and "DataFinal" in df_projetos.columns:
+            # Converter para datetime e depois para string no formato padrão
+            try:
+                # Tentar converter datas que estão em diferentes formatos
+                for idx, row in df_projetos.iterrows():
+                    for date_col in ["DataInicio", "DataFinal"]:
+                        try:
+                            # Tentar formato ISO
+                            date_val = pd.to_datetime(row[date_col])
+                            df_projetos.at[idx, date_col] = date_val.strftime("%Y-%m-%d")
+                        except:
+                            # Se falhar, manter o valor original
+                            pass
+            except Exception as e:
+                st.warning(f"Aviso: Alguns formatos de data podem estar inconsistentes. {str(e)}")
+    
     filtro_dropdown = st.selectbox(
         "🔍 Selecione um projeto",
         options=[""] + list(df_projetos["Projeto"].unique()),  # Dropdown inclui opção vazia
@@ -1979,8 +2133,30 @@ def projetos():
                 Localizacao = st.text_input("Localização", value=projeto["Localizacao"])
                 Placa = st.selectbox("Já possui placa na obra?", ["Sim", "Não"], index=["Sim", "Não"].index(projeto["Placa"]))
                 Post = st.selectbox("Já foi feito o post do projeto?", ["Sim", "Não"], index=["Sim", "Não"].index(projeto["Post"]))
-                DataInicio = st.date_input("Data de Início", value=datetime.strptime(projeto["DataInicio"], "%Y-%m-%d"))
-                DataFinal = st.date_input("Data de Conclusão Prevista", value=datetime.strptime(projeto["DataFinal"], "%Y-%m-%d"))
+                
+                # Corrigir o tratamento de datas para lidar com diferentes formatos
+                try:
+                    # Tenta converter a data no formato "%Y-%m-%d"
+                    DataInicio = st.date_input("Data de Início", value=datetime.strptime(projeto["DataInicio"], "%Y-%m-%d"))
+                except ValueError:
+                    try:
+                        # Tenta converter a data no formato "%d/%m/%Y"
+                        DataInicio = st.date_input("Data de Início", value=datetime.strptime(projeto["DataInicio"], "%d/%m/%Y"))
+                    except:
+                        # Se falhar, usa a data atual
+                        DataInicio = st.date_input("Data de Início", value=datetime.now())
+                
+                try:
+                    # Tenta converter a data no formato "%Y-%m-%d"
+                    DataFinal = st.date_input("Data de Conclusão Prevista", value=datetime.strptime(projeto["DataFinal"], "%Y-%m-%d"))
+                except ValueError:
+                    try:
+                        # Tenta converter a data no formato "%d/%m/%Y"
+                        DataFinal = st.date_input("Data de Conclusão Prevista", value=datetime.strptime(projeto["DataFinal"], "%d/%m/%Y"))
+                    except:
+                        # Se falhar, usa a data atual + 30 dias
+                        DataFinal = st.date_input("Data de Conclusão Prevista", value=datetime.now() + timedelta(days=30))
+                
                 Contrato = st.selectbox("Contrato", ["Feito", "A fazer"], index=["Feito", "A fazer"].index(projeto["Contrato"]))
                 Status = st.selectbox("Status", ["Concluído", "Em Andamento", "A fazer", "Impedido"], index=["Concluído", "Em Andamento", "A fazer", "Impedido"].index(projeto["Status"]))
                 Briefing = st.selectbox("Briefing", ["Feito", "A fazer"], index=["Feito", "A fazer"].index(projeto["Briefing"]))
@@ -1994,46 +2170,38 @@ def projetos():
                 ResponsávelHidráulico = st.text_input("Responsável Hidráulico", value=projeto["ResponsávelHidráulico"])
                 ResponsávelModelagem = st.text_input("Responsável Modelagem", value=projeto["ResponsávelModelagem"])
                 ResponsávelDetalhamento = st.text_input("Responsável Detalhamento", value=projeto["ResponsávelDetalhamento"])
+                submit = st.form_submit_button("Salvar Alterações")
 
-                # Botões de salvar e cancelar
-                col1, col2 = st.columns(2)
+                if submit:
+                    # Atualiza o projeto no DataFrame
+                    index = df_projetos[df_projetos["Projeto"] == projeto["Projeto"]].index[0]
+                    df_projetos.loc[index] = {
+                        "Projeto": Projeto,
+                        "Cliente": Cliente,
+                        "Localizacao": Localizacao,
+                        "Placa": Placa,
+                        "Post": Post,
+                        "DataInicio": DataInicio.strftime("%Y-%m-%d"),
+                        "DataFinal": DataFinal.strftime("%Y-%m-%d"),
+                        "Contrato": Contrato,
+                        "Status": Status,
+                        "Briefing": Briefing,
+                        "Arquiteto": Arquiteto,
+                        "Tipo": Tipo,
+                        "Pacote": Pacote,
+                        "m2": m2,
+                        "Parcelas": Parcelas,
+                        "ValorTotal": ValorTotal,
+                        "ResponsávelElétrico": ResponsávelElétrico,
+                        "ResponsávelHidráulico": ResponsávelHidráulico,
+                        "ResponsávelModelagem": ResponsávelModelagem,
+                        "ResponsávelDetalhamento": ResponsávelDetalhamento,
+                    }
 
-                with col1:
-                    if st.form_submit_button("Salvar Alterações"):
-                        # Atualiza o projeto no DataFrame
-                        index = df_projetos[df_projetos["Projeto"] == projeto["Projeto"]].index[0]
-                        df_projetos.loc[index] = {
-                            "Projeto": Projeto,
-                            "Cliente": Cliente,
-                            "Localizacao": Localizacao,
-                            "Placa": Placa,
-                            "Post": Post,
-                            "DataInicio": DataInicio.strftime("%Y-%m-%d"),
-                            "DataFinal": DataFinal.strftime("%Y-%m-%d"),
-                            "Contrato": Contrato,
-                            "Status": Status,
-                            "Briefing": Briefing,
-                            "Arquiteto": Arquiteto,
-                            "Tipo": Tipo,
-                            "Pacote": Pacote,
-                            "m2": m2,
-                            "Parcelas": Parcelas,
-                            "ValorTotal": ValorTotal,
-                            "ResponsávelElétrico": ResponsávelElétrico,
-                            "ResponsávelHidráulico": ResponsávelHidráulico,
-                            "ResponsávelModelagem": ResponsávelModelagem,
-                            "ResponsávelDetalhamento": ResponsávelDetalhamento,
-                        }
-
-                        salvar_projetos(df_projetos)  # Salva no Google Sheets
-                        st.session_state["projeto_selecionado"] = df_projetos.loc[index].to_dict()
-                        st.session_state["editando"] = False
-                        st.rerun()
-
-                with col2:
-                    if st.form_submit_button("Cancelar"):
-                        st.session_state["editando"] = False
-                        st.rerun()
+                    salvar_projetos(df_projetos)  # Salva no Google Sheets
+                    st.session_state["projeto_selecionado"] = df_projetos.loc[index].to_dict()
+                    st.session_state["editando"] = False
+                    st.rerun()
 
 ########################################## FUNCIONÁRIOS ##########################################
 
