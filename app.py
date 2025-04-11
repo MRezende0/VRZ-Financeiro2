@@ -2022,6 +2022,132 @@ def projetos():
             except Exception as e:
                 st.warning(f"Aviso: Alguns formatos de data podem estar inconsistentes. {str(e)}")
     
+    # Inicializar o estado para controlar quando um card é clicado
+    if "card_clicado" not in st.session_state:
+        st.session_state.card_clicado = False
+        
+    # Função para selecionar um projeto quando o card é clicado
+    def selecionar_projeto(projeto_dict):
+        st.session_state["projeto_selecionado"] = projeto_dict
+        st.session_state.card_clicado = True
+    
+    # SEÇÃO DE DETALHES/EDIÇÃO MOVIDA PARA O TOPO
+    # Verificar se um projeto foi selecionado
+    if "projeto_selecionado" in st.session_state:
+        projeto = st.session_state["projeto_selecionado"]
+
+        # Criar as abas para exibir detalhes ou editar com menos espaçamento
+        st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
+        tabs = st.radio("Escolha uma opção", ("Detalhes", "Editar"), horizontal=True)
+        st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
+
+        if tabs == "Detalhes":
+            # Exibir detalhes do projeto selecionado
+            st.markdown(
+                f"""
+                <div style="
+                    background-color: #f8f9fa;
+                    padding: 15px;
+                    border-radius: 10px;
+                    border: 1px solid #ddd;
+                    text-align: left;
+                    margin-bottom: 15px;">
+                    <h3 style="text-align: center; margin-top: 0;">📄 Detalhes do Projeto</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; grid-gap: 10px;">
+                        <div>
+                            <strong>Projeto:</strong> {projeto['Projeto']}<br>
+                            <strong>Cliente:</strong> {projeto['Cliente']}<br>
+                            <strong>Localização:</strong> {projeto['Localizacao']}<br>
+                            <strong>Placa:</strong> {projeto['Placa']}<br>
+                            <strong>Post:</strong> {projeto['Post']}<br>
+                            <strong>Data Inicial:</strong> {projeto['DataInicio']}<br>
+                            <strong>Data Final:</strong> {projeto['DataFinal']}<br>
+                        </div>
+                        <div>
+                            <strong>Contrato:</strong> {projeto['Contrato']}<br>
+                            <strong>Status:</strong> {projeto['Status']}<br>
+                            <strong>Briefing:</strong> {projeto['Briefing']}<br>
+                            <strong>Arquiteto:</strong> {projeto['Arquiteto']}<br>
+                            <strong>Tipo:</strong> {projeto['Tipo']}<br>
+                            <strong>Pacote:</strong> {projeto['Pacote']}<br>
+                            <strong>m²:</strong> {projeto['m2']}<br>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True
+            )
+        else:  # Editar
+            # Formulário para editar o projeto
+            with st.form("editar_projeto"):
+                col1_edit, col2_edit = st.columns(2)
+                
+                with col1_edit:
+                    Projeto = st.text_input("ID Projeto", value=projeto["Projeto"])
+                    Cliente = st.text_input("Nome do cliente", value=projeto["Cliente"])
+                    Localizacao = st.text_input("Localização", value=projeto["Localizacao"])
+                    Placa = st.selectbox("Já possui placa na obra?", ["Sim", "Não"], index=0 if projeto["Placa"] == "Sim" else 1)
+                    Post = st.selectbox("Já foi feito o post do projeto?", ["Sim", "Não"], index=0 if projeto["Post"] == "Sim" else 1)
+                    try:
+                        DataInicio = st.date_input("Data de Início", value=pd.to_datetime(projeto["DataInicio"]) if not pd.isna(projeto["DataInicio"]) else datetime.now())
+                        DataFinal = st.date_input("Data de Conclusão Prevista", value=pd.to_datetime(projeto["DataFinal"]) if not pd.isna(projeto["DataFinal"]) else datetime.now())
+                    except:
+                        DataInicio = st.date_input("Data de Início")
+                        DataFinal = st.date_input("Data de Conclusão Prevista")
+                    Contrato = st.text_input("Contrato", value=projeto["Contrato"] if not pd.isna(projeto["Contrato"]) else "")
+                    Status = st.selectbox("Status", ["Em andamento", "Concluído", "Cancelado"], index=0 if projeto["Status"] == "Em andamento" else (1 if projeto["Status"] == "Concluído" else 2))
+                    Briefing = st.text_area("Briefing", value=projeto["Briefing"] if not pd.isna(projeto["Briefing"]) else "")
+                
+                with col2_edit:
+                    Arquiteto = st.text_input("Arquiteto", value=projeto["Arquiteto"] if not pd.isna(projeto["Arquiteto"]) else "")
+                    Tipo = st.selectbox("Tipo de Projeto", ["Residencial", "Comercial", "Industrial"], index=0 if projeto["Tipo"] == "Residencial" else (1 if projeto["Tipo"] == "Comercial" else 2))
+                    Pacote = st.selectbox("Pacote", ["Básico", "Intermediário", "Completo"], index=0 if projeto["Pacote"] == "Básico" else (1 if projeto["Pacote"] == "Intermediário" else 2))
+                    m2 = st.number_input("Área (m²)", value=float(projeto["m2"]) if not pd.isna(projeto["m2"]) else 0.0, step=10.0)
+                    Parcelas = st.number_input("Número de Parcelas", value=int(projeto["Parcelas"]) if not pd.isna(projeto["Parcelas"]) else 1, step=1)
+                    ValorTotal = st.number_input("Valor Total (R$)", value=float(projeto["ValorTotal"]) if not pd.isna(projeto["ValorTotal"]) else 0.0, step=100.0)
+                    ResponsávelElétrico = st.text_input("Responsável Elétrico", value=projeto["ResponsávelElétrico"] if not pd.isna(projeto["ResponsávelElétrico"]) else "")
+                    ResponsávelHidráulico = st.text_input("Responsável Hidráulico", value=projeto["ResponsávelHidráulico"] if not pd.isna(projeto["ResponsávelHidráulico"]) else "")
+                    ResponsávelModelagem = st.text_input("Responsável Modelagem", value=projeto["ResponsávelModelagem"] if not pd.isna(projeto["ResponsávelModelagem"]) else "")
+                    ResponsávelDetalhamento = st.text_input("Responsável Detalhamento", value=projeto["ResponsávelDetalhamento"] if not pd.isna(projeto["ResponsávelDetalhamento"]) else "")
+                
+                submit = st.form_submit_button("Atualizar Projeto")
+                
+                if submit:
+                    # Atualiza o projeto no DataFrame
+                    idx = df_projetos[df_projetos["Projeto"] == projeto["Projeto"]].index[0]
+                    
+                    df_projetos.at[idx, "Projeto"] = Projeto
+                    df_projetos.at[idx, "Cliente"] = Cliente
+                    df_projetos.at[idx, "Localizacao"] = Localizacao
+                    df_projetos.at[idx, "Placa"] = Placa
+                    df_projetos.at[idx, "Post"] = Post
+                    df_projetos.at[idx, "DataInicio"] = DataInicio.strftime("%Y-%m-%d")
+                    df_projetos.at[idx, "DataFinal"] = DataFinal.strftime("%Y-%m-%d")
+                    df_projetos.at[idx, "Contrato"] = Contrato
+                    df_projetos.at[idx, "Status"] = Status
+                    df_projetos.at[idx, "Briefing"] = Briefing
+                    df_projetos.at[idx, "Arquiteto"] = Arquiteto
+                    df_projetos.at[idx, "Tipo"] = Tipo
+                    df_projetos.at[idx, "Pacote"] = Pacote
+                    df_projetos.at[idx, "m2"] = m2
+                    df_projetos.at[idx, "Parcelas"] = Parcelas
+                    df_projetos.at[idx, "ValorTotal"] = ValorTotal
+                    df_projetos.at[idx, "ResponsávelElétrico"] = ResponsávelElétrico
+                    df_projetos.at[idx, "ResponsávelHidráulico"] = ResponsávelHidráulico
+                    df_projetos.at[idx, "ResponsávelModelagem"] = ResponsávelModelagem
+                    df_projetos.at[idx, "ResponsávelDetalhamento"] = ResponsávelDetalhamento
+                    
+                    # Salva o DataFrame atualizado
+                    if salvar_projetos(df_projetos):
+                        st.success("Projeto atualizado com sucesso!")
+                        # Atualiza o projeto selecionado na sessão
+                        st.session_state["projeto_selecionado"] = df_projetos.loc[idx].to_dict()
+                    else:
+                        st.error("Erro ao atualizar o projeto.")
+    
+    # Barra de separação
+    st.markdown("<hr style='margin: 15px 0;'>", unsafe_allow_html=True)
+    
+    # Filtro de projetos
     filtro_dropdown = st.selectbox(
         "🔍 Selecione um projeto",
         options=[""] + list(df_projetos["Projeto"].unique()),  # Dropdown inclui opção vazia
@@ -2031,56 +2157,84 @@ def projetos():
     # Filtrar os projetos
     if filtro_dropdown:
         df_projetos = df_projetos[df_projetos["Projeto"] == filtro_dropdown]
-    else:
-        df_projetos = df_projetos
-
+    
     # Divide a tela em 3 colunas
     col1, col2, col3 = st.columns(3)
 
+    # Função para selecionar um projeto quando o card é clicado
+    def selecionar_projeto(projeto_dict):
+        st.session_state["projeto_selecionado"] = projeto_dict
+        st.session_state.card_clicado = True
+
+    # Distribuir os cards nas colunas
     for i, row in df_projetos.iterrows():
-        # Criando um card HTML clicável com efeito hover
-        card = f"""
-        <div onclick="selectProject({i})" style="
+        # Criar um dicionário com os dados do projeto, convertendo valores NaT para None
+        projeto_dict = {}
+        for key, value in row.items():
+            if pd.isna(value):
+                projeto_dict[key] = None
+            else:
+                projeto_dict[key] = value
+        
+        # Criar um card clicável usando um container
+        if i % 3 == 0:
+            container = col1.container()
+        elif i % 3 == 1:
+            container = col2.container()
+        else:
+            container = col3.container()
+            
+        # Estilizar o container como um card
+        container.markdown(f"""
+        <div style="
             background-color: #ffffff;
-            padding: 15px;
-            border-radius: 10px;
+            padding: 10px;
+            border-radius: 8px;
             border: 1px solid #ddd;
             text-align: center;
-            width: 220px;
-            height: 160px;
+            height: 130px;
             display: flex;
             flex-direction: column;
             justify-content: center;
             cursor: pointer;
+            box-shadow: 1px 1px 5px rgba(0,0,0,0.1);
+            margin-bottom: 10px;
             transition: transform 0.2s, box-shadow 0.2s;
-            box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
-            margin-bottom: 30px;
-        "
-        onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='4px 4px 15px rgba(0,0,0,0.2)';"
-        onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='2px 2px 10px rgba(0,0,0,0.1)';">
+        ">
             <strong>{row['Projeto']}</strong><br>
             📌 Cliente: {row['Cliente']}<br>
             📍 Localização: {row['Localizacao']}<br>
             📏 Área: {row['m2']} m²
         </div>
-        """
-
-        # Distribuir os cards nas colunas
-        if i % 3 == 0:
-            with col1:
-                if st.button(f"{row['Projeto']}", key=f"proj_{i}") :
-                    st.session_state["projeto_selecionado"] = row.to_dict()
-                st.markdown(card, unsafe_allow_html=True)
-        elif i % 3 == 1:
-            with col2:
-                if st.button(f"{row['Projeto']}", key=f"proj_{i}") :
-                    st.session_state["projeto_selecionado"] = row.to_dict()
-                st.markdown(card, unsafe_allow_html=True)
-        else:
-            with col3:
-                if st.button(f"{row['Projeto']}", key=f"proj_{i}") :
-                    st.session_state["projeto_selecionado"] = row.to_dict()
-                st.markdown(card, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
+        
+        # Botão invisível que cobre o card para torná-lo clicável
+        # Usamos um truque CSS para posicionar o botão sobre o card
+        container.markdown("""
+        <style>
+        div.stButton > button {
+            position: relative;
+            top: -150px;  /* Ajustado para o novo tamanho do card */
+            background-color: transparent;
+            color: transparent;
+            border: none;
+            width: 100%;
+            height: 130px;
+            cursor: pointer;
+            z-index: 1;
+            margin-bottom: -150px;  /* Compensar o deslocamento top */
+        }
+        div.stButton > button:hover {
+            background-color: transparent;
+            color: transparent;
+            border: none;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # Botão invisível que cobre o card
+        if container.button("", key=f"card_{i}"):
+            selecionar_projeto(projeto_dict)
 
     # Verificar se um projeto foi selecionado
     if "projeto_selecionado" in st.session_state:
