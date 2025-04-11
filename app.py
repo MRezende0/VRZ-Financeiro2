@@ -737,7 +737,7 @@ def salvar_dados(df, sheet_name):
 
 # Tela de Registrar Receita
 def registrar_receita():
-    st.subheader("📈 Registrar Receita")
+    st.subheader("📈 Receita")
     
     # Carregar dados necessários
     df_categorias_receitas = carregar_dados_sob_demanda("Categorias_Receitas")
@@ -805,7 +805,7 @@ def registrar_despesa():
     df_fornecedor_despesas = carregar_dados_sob_demanda("Fornecedor_Despesas")
     df_projetos = carregar_dados_sob_demanda("Projetos")
     
-    st.subheader("📤 Registrar Despesa")
+    st.subheader("📤 Despesa")
     
     # Formulário para adicionar nova despesa
     with st.form("nova_despesa"):
@@ -913,7 +913,7 @@ def registrar_projeto():
     # Carregar dados necessários
     df_projetos = carregar_dados_sob_demanda("Projetos")
     
-    st.title("🏗️ Registrar Projeto")
+    st.subheader("🏗️ Projeto")
 
     with st.form("form_projeto"):
         Projeto = st.text_input("ID Projeto")
@@ -967,7 +967,7 @@ def registrar_projeto():
 
 # Função para registrar cliente
 def registrar_cliente():
-    st.subheader("👤 Registrar Cliente")
+    st.subheader("👤 Cliente")
     
     # Carregar dados existentes
     try:
@@ -1030,6 +1030,8 @@ def registrar_cliente():
                     except Exception as e:
                         st.error(f"Erro ao registrar cliente: {str(e)}")
         
+        st.divider()
+
         # Exibir clientes existentes em uma tabela editável
         st.subheader("Clientes Cadastrados")
         
@@ -1081,7 +1083,7 @@ def registrar_cliente():
 
 # Função para registrar funcionário
 def registrar_funcionario():
-    st.subheader("👷 Registrar Funcionário")
+    st.subheader("👷 Funcionário")
     
     # Carregar dados existentes
     try:
@@ -1157,6 +1159,8 @@ def registrar_funcionario():
                     except Exception as e:
                         st.error(f"Erro ao registrar funcionário: {str(e)}")
         
+        st.divider()
+        
         # Exibir funcionários existentes em uma tabela editável
         st.subheader("Funcionários Cadastrados")
         
@@ -1209,7 +1213,7 @@ def registrar_funcionario():
 
 # Função para registrar categoria
 def registrar_categoria():
-    st.subheader("🏷️ Gerenciar Categorias")
+    st.subheader("🏷️ Categorias")
     
     # Tabs para separar categorias de receitas e despesas
     tab_receitas, tab_despesas = st.tabs(["Categorias de Receitas", "Categorias de Despesas"])
@@ -1310,7 +1314,7 @@ def registrar_categoria():
 
 # Função para registrar fornecedor
 def registrar_fornecedor():
-    st.subheader("🏢 Gerenciar Fornecedores")
+    st.subheader("🏢 Fornecedores")
     
     # Carregar fornecedores existentes
     df_fornecedores = carregar_dados_sob_demanda("Fornecedor_Despesas")
