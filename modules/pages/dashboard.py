@@ -278,6 +278,9 @@ def dashboard():
         </div>
         """, unsafe_allow_html=True)
 
+    st.write("")
+    st.write("")
+
     # Organização dos gráficos em abas para melhor visualização
     tabs = st.tabs(["Financeiro", "Projetos", "Funcionários"])
     

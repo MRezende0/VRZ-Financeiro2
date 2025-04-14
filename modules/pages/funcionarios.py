@@ -1,8 +1,9 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from modules.data.sheets import carregar_dados_sob_demanda, salvar_dados_sheets
+from modules.data.sheets import carregar_dados_sob_demanda, salvar_dados_sheets, adicionar_linha_sheets
 from utils.config import FUNCIONARIOS
+from modules.ui.tables import create_editable_table_with_delete_button, format_date_columns
 
 def registrar_funcionario():
     """
@@ -51,41 +52,22 @@ def registrar_funcionario():
                         "Endereço": endereco
                     }
                     
-                    # Adicionar o novo funcionário ao DataFrame
-                    novo_df = pd.DataFrame([novo_funcionario])
-                    df_funcionarios = pd.concat([df_funcionarios, novo_df], ignore_index=True)
-                    
-                    # Salvar alterações
-                    if salvar_dados_sheets(df_funcionarios, "Funcionarios"):
+                    # Adicionar o novo funcionário diretamente à planilha
+                    if adicionar_linha_sheets(novo_funcionario, "Funcionarios"):
                         st.success("Funcionário registrado com sucesso!")
                         # Limpar o cache para forçar recarregar os dados
                         st.session_state.local_data["funcionarios"] = pd.DataFrame()
+                        
+                        # Recarregar os dados para exibir o novo funcionário na tabela
+                        df_funcionarios = carregar_dados_sob_demanda("Funcionarios", force_reload=True)
                     else:
                         st.error("Erro ao registrar funcionário.")
         
         # Exibir lista de funcionários
         st.write("### Lista de Funcionários")
         
-        # Exibir a tabela de funcionários
-        if not df_funcionarios.empty:
-            edited_df = st.data_editor(
-                df_funcionarios,
-                use_container_width=True,
-                hide_index=True,
-                num_rows="fixed"
-            )
-            
-            # Verificar se houve alterações
-            if not edited_df.equals(df_funcionarios):
-                # Salvar alterações
-                if salvar_dados_sheets(edited_df, "Funcionarios"):
-                    st.success("Alterações salvas com sucesso!")
-                    # Limpar o cache para forçar recarregar os dados
-                    st.session_state.local_data["funcionarios"] = pd.DataFrame()
-                else:
-                    st.error("Erro ao salvar alterações.")
-        else:
-            st.info("Nenhum funcionário cadastrado.")
+        # Usar a nova função de tabela editável com coluna de seleção
+        create_editable_table_with_delete_button(df_funcionarios, "Funcionarios", key_prefix="funcionarios")
     
     except Exception as e:
         st.error(f"Erro ao carregar dados dos funcionários: {e}")

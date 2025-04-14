@@ -5,6 +5,7 @@ import gspread
 from google.oauth2 import service_account
 from random import uniform
 from utils.config import SHEET_ID, SHEET_GIDS, COLUNAS_ESPERADAS
+from utils.data_utils import preparar_dados_para_sheets, converter_para_string_segura
 
 def conectar_sheets(force_reconnect=False):
     """
@@ -136,6 +137,9 @@ def salvar_dados_sheets(df, sheet_name):
         bool: True se os dados foram salvos com sucesso, False caso contrário
     """
     try:
+        # Prepara os dados para serialização segura
+        df_preparado = preparar_dados_para_sheets(df, is_dataframe=True)
+        
         # Conecta ao Google Sheets
         spreadsheet = conectar_sheets()
         if spreadsheet is None:
@@ -161,8 +165,17 @@ def salvar_dados_sheets(df, sheet_name):
             st.session_state.worksheets_cache[sheet_name] = worksheet
         
         # Prepara os dados para salvar
-        headers = df.columns.tolist()
-        values = df.values.tolist()
+        headers = df_preparado.columns.tolist()
+        
+        # Converte todos os valores para string para evitar problemas de serialização
+        values = []
+        for _, row in df_preparado.iterrows():
+            row_values = []
+            for val in row:
+                # Usa a função de conversão segura
+                row_values.append(converter_para_string_segura(val))
+            values.append(row_values)
+        
         all_values = [headers] + values
         
         # Limpa a planilha atual
@@ -195,6 +208,9 @@ def adicionar_linha_sheets(nova_linha, sheet_name):
         bool: True se os dados foram adicionados com sucesso, False caso contrário
     """
     try:
+        # Prepara os dados para serialização segura
+        nova_linha = preparar_dados_para_sheets(nova_linha, is_dataframe=False)
+        
         # Carrega os dados atuais
         df = carregar_dados_sheets(sheet_name)
         
@@ -221,22 +237,23 @@ def adicionar_linha_sheets(nova_linha, sheet_name):
         st.error(f"Erro ao adicionar linha na planilha '{sheet_name}': {e}")
         return False
 
-def carregar_dados_sob_demanda(sheet_name):
+def carregar_dados_sob_demanda(sheet_name, force_reload=False):
     """
     Carrega dados de uma planilha específica apenas quando necessário.
     
     Args:
         sheet_name: Nome da planilha a ser carregada
+        force_reload: Se True, força o recarregamento mesmo que os dados já estejam em cache
     
     Returns:
         pandas.DataFrame: DataFrame com os dados carregados
     """
-    # Verifica se já temos os dados em cache
-    if sheet_name in st.session_state.local_data and not st.session_state.local_data[sheet_name].empty:
+    # Verifica se já temos os dados em cache e não estamos forçando recarregamento
+    if not force_reload and sheet_name in st.session_state.local_data and not st.session_state.local_data[sheet_name].empty:
         return st.session_state.local_data[sheet_name]
     
-    # Se não temos os dados em cache, carrega do Google Sheets
-    df = carregar_dados_sheets(sheet_name)
+    # Se não temos os dados em cache ou estamos forçando recarregamento, carrega do Google Sheets
+    df = carregar_dados_sheets(sheet_name, force_reload=force_reload)
     
     # Armazena os dados em cache
     st.session_state.local_data[sheet_name] = df
@@ -269,3 +286,61 @@ def carregar_dados_background():
     for sheet_name in planilhas_background:
         df = carregar_dados_sheets(sheet_name)
         st.session_state.local_data[sheet_name] = df
+
+def verificar_estrutura_planilha(sheet_name):
+    """
+    Verifica se a estrutura da planilha está correta e restaura se necessário.
+    
+    Args:
+        sheet_name: Nome da planilha a ser verificada
+    
+    Returns:
+        bool: True se a estrutura está correta ou foi restaurada, False caso contrário
+    """
+    try:
+        # Carrega os dados da planilha
+        df = carregar_dados_sheets(sheet_name, force_reload=True)
+        
+        # Verifica se a planilha está vazia ou não tem as colunas esperadas
+        if df.empty or not all(col in df.columns for col in COLUNAS_ESPERADAS.get(sheet_name, [])):
+            # Cria um DataFrame vazio com as colunas esperadas
+            df_novo = pd.DataFrame(columns=COLUNAS_ESPERADAS.get(sheet_name, []))
+            
+            # Se a planilha não está vazia, tenta preservar os dados existentes
+            if not df.empty:
+                # Para cada coluna esperada, verifica se existe na planilha atual
+                for col in COLUNAS_ESPERADAS.get(sheet_name, []):
+                    if col in df.columns:
+                        df_novo[col] = df[col]
+            
+            # Salva o DataFrame com a estrutura correta
+            if salvar_dados_sheets(df_novo, sheet_name):
+                st.success(f"A estrutura da planilha '{sheet_name}' foi restaurada com sucesso.")
+                return True
+            else:
+                st.error(f"Não foi possível restaurar a estrutura da planilha '{sheet_name}'.")
+                return False
+        
+        return True
+    
+    except Exception as e:
+        st.error(f"Erro ao verificar estrutura da planilha '{sheet_name}': {e}")
+        return False
+
+def verificar_todas_planilhas():
+    """
+    Verifica a estrutura de todas as planilhas e restaura se necessário.
+    
+    Returns:
+        bool: True se todas as planilhas estão corretas ou foram restauradas, False caso contrário
+    """
+    # Lista de todas as planilhas
+    todas_planilhas = list(COLUNAS_ESPERADAS.keys())
+    
+    # Verifica cada planilha
+    resultados = []
+    for sheet_name in todas_planilhas:
+        resultados.append(verificar_estrutura_planilha(sheet_name))
+    
+    # Retorna True se todas as planilhas estão corretas
+    return all(resultados)

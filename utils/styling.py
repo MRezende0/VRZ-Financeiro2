@@ -34,6 +34,21 @@ def local_css():
             .stApp {
                 background-color: #fff;
             }
+            
+            /* Ocultar a coluna de seleção nas tabelas editáveis */
+            [data-testid="column-header-0"] {
+                display: none !important;
+            }
+            [data-testid="stDataFrameResizable"] thead tr th:first-child {
+                display: none !important;
+            }
+            [data-testid="stDataFrameResizable"] tbody tr td:first-child {
+                display: none !important;
+            }
+            /* Ocultar botões de exclusão de linhas */
+            button[kind="secondaryFormSubmit"] {
+                display: none !important;
+            }
         </style>
     """, unsafe_allow_html=True)
 

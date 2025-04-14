@@ -2,7 +2,8 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-from modules.data.sheets import carregar_dados_sob_demanda, adicionar_linha_sheets
+from modules.data.sheets import carregar_dados_sob_demanda, adicionar_linha_sheets, salvar_dados_sheets
+from modules.ui.tables import create_editable_table_with_delete_button, format_date_columns
 
 def salvar_dados(df, sheet_name):
     """
@@ -24,6 +25,15 @@ def registrar_receita():
     # Carregar dados necessários
     df_categorias_receitas = carregar_dados_sob_demanda("Categorias_Receitas")
     df_projetos = carregar_dados_sob_demanda("Projetos")
+    df_receitas = carregar_dados_sob_demanda("Receitas")
+    
+    # Formatar colunas de data e garantir que sejam strings
+    df_receitas = format_date_columns(df_receitas)
+    
+    # Garantir que todas as colunas de data sejam strings
+    for col in df_receitas.columns:
+        if "Data" in col:
+            df_receitas[col] = df_receitas[col].astype(str)
     
     # Verificar se os dados foram carregados corretamente
     if df_categorias_receitas.empty or "Categoria" not in df_categorias_receitas.columns:
@@ -53,9 +63,10 @@ def registrar_receita():
                 "DataRecebimento": data_recebimento.strftime("%d/%m/%Y"),
                 "Descrição": descricao,
                 "Categoria": categoria,
-                "ValorTotal": valor,
+                "ValorTotal": str(valor),  # Converte para string para evitar problemas de serialização
                 "FormaPagamento": forma_pagamento,
-                "Projeto": projeto
+                "Projeto": projeto,
+                "NF": "Não"  # Valor padrão para NF
             }
             
             # Adiciona a nova receita ao Google Sheets
@@ -63,8 +74,16 @@ def registrar_receita():
                 st.success("Receita registrada com sucesso!")
                 # Limpar o cache para forçar recarregar os dados
                 st.session_state.local_data["receitas"] = pd.DataFrame()
+                # Recarregar os dados para exibir a nova receita na tabela
+                df_receitas = carregar_dados_sob_demanda("Receitas", force_reload=True)
             else:
                 st.error("Erro ao registrar receita.")
+    
+    # Exibir lista de receitas
+    st.write("### Lista de Receitas")
+    
+    # Usar a nova função de tabela editável com coluna de seleção
+    create_editable_table_with_delete_button(df_receitas, "Receitas", key_prefix="receitas")
 
 def registrar_despesa():
     """
@@ -74,6 +93,15 @@ def registrar_despesa():
     df_categorias_despesas = carregar_dados_sob_demanda("Categorias_Despesas")
     df_fornecedor_despesas = carregar_dados_sob_demanda("Fornecedor_Despesas")
     df_projetos = carregar_dados_sob_demanda("Projetos")
+    df_despesas = carregar_dados_sob_demanda("Despesas")
+    
+    # Formatar colunas de data e garantir que sejam strings
+    df_despesas = format_date_columns(df_despesas)
+    
+    # Garantir que todas as colunas de data sejam strings
+    for col in df_despesas.columns:
+        if "Data" in col:
+            df_despesas[col] = df_despesas[col].astype(str)
     
     st.subheader("📤 Despesa")
     
@@ -112,7 +140,7 @@ def registrar_despesa():
                     "DataPagamento": data_parcela.strftime("%d/%m/%Y"),
                     "Descrição": descricao,
                     "Categoria": categoria,
-                    "ValorTotal": valor_parcela,
+                    "ValorTotal": str(valor_parcela),  # Converte para string para evitar problemas de serialização
                     "Parcelas": f"{i + 1}/{parcelas}",  # Identifica a parcela atual
                     "FormaPagamento": forma_pagamento,
                     "Responsável": responsavel,
@@ -133,8 +161,16 @@ def registrar_despesa():
                 st.success(f"Despesa registrada com sucesso! {parcelas} parcela(s) criada(s).")
                 # Limpar o cache para forçar recarregar os dados
                 st.session_state.local_data["despesas"] = pd.DataFrame()
+                # Recarregar os dados para exibir a nova despesa na tabela
+                df_despesas = carregar_dados_sob_demanda("Despesas", force_reload=True)
             else:
                 st.error("Erro ao registrar despesa.")
+    
+    # Exibir lista de despesas
+    st.write("### Lista de Despesas")
+    
+    # Usar a nova função de tabela editável com coluna de seleção
+    create_editable_table_with_delete_button(df_despesas, "Despesas", key_prefix="despesas")
 
 def registrar():
     """

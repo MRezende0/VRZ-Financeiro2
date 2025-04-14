@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import os
 
 # Importar módulos de utilidades
 from utils.ssl_patch import patch_ssl
@@ -14,9 +15,10 @@ from modules.pages.transacoes import registrar
 from modules.pages.projetos import projetos
 from modules.pages.funcionarios import funcionarios
 from modules.pages.relatorios import relatorios
+from modules.pages.admin import admin
 
 # Importar módulos de dados
-from modules.data.sheets import carregar_dados_iniciais
+from modules.data.sheets import carregar_dados_iniciais, verificar_todas_planilhas
 
 # Importar módulos de UI
 from modules.ui.layout import create_sidebar
@@ -30,6 +32,10 @@ setup_page_config()
 # Aplicar estilos personalizados
 local_css()
 
+# Criar pasta de backups se não existir
+backup_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backups")
+os.makedirs(backup_dir, exist_ok=True)
+
 # Inicialização dos dados locais
 if 'local_data' not in st.session_state:
     st.session_state.local_data = {
@@ -42,6 +48,10 @@ if 'local_data' not in st.session_state:
         'fornecedor_despesas': pd.DataFrame(),
         'funcionarios': pd.DataFrame()
     }
+
+# Definir permissões de administrador (temporário, depois usar banco de dados)
+if "admin" not in st.session_state:
+    st.session_state.admin = True  # Temporariamente todos são admin
 
 # Cache para a planilha
 if 'spreadsheet' not in st.session_state:
@@ -69,6 +79,8 @@ def main_app():
         funcionarios()
     elif menu_option == "Relatórios":
         relatorios()
+    elif menu_option == "Admin":
+        admin()
 
 if __name__ == "__main__":
     if "logged_in" not in st.session_state:
@@ -76,8 +88,14 @@ if __name__ == "__main__":
     
     # Verificar se precisamos carregar dados após o login
     if st.session_state.get("carregar_dados_apos_login", False) and not st.session_state.get("dados_carregados", False):
+        # Verificar a estrutura das planilhas antes de carregar os dados
+        with st.spinner("Verificando estrutura das planilhas..."):
+            verificar_todas_planilhas()
+        
         # Iniciar carregamento em segundo plano sem bloquear a interface
-        carregar_dados_iniciais()
+        with st.spinner("Carregando dados..."):
+            carregar_dados_iniciais()
+        
         # Limpar a flag
         st.session_state.carregar_dados_apos_login = False
 

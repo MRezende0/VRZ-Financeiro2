@@ -10,9 +10,16 @@ def create_sidebar():
     st.sidebar.image("imagens/logo-cocal.png")
     st.sidebar.title("Menu")
     
+    # Lista de opções do menu
+    menu_options = ["Dashboard", "Registrar", "Projetos", "Funcionários", "Relatórios"]
+    
+    # Adiciona a opção de administração se o usuário tiver permissão
+    if st.session_state.get("admin", False):
+        menu_options.append("Admin")
+    
     menu_option = st.sidebar.radio(
         "Selecione a funcionalidade:",
-        ("Dashboard", "Registrar", "Projetos", "Funcionários", "Relatórios")
+        menu_options
     )
     
     # Botão "Sair" na parte inferior da sidebar

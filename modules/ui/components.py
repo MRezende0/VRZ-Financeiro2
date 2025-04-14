@@ -138,6 +138,36 @@ def create_comparison_chart(x, y1, y2, name1, name2, title, color1="#4caf50", co
     
     return fig
 
+def card_metric(title, value, delta=None, delta_color="normal", prefix="", suffix="", help_text=None):
+    """
+    Exibe uma métrica em formato de cartão usando o componente st.metric.
+    
+    Args:
+        title: Título da métrica
+        value: Valor principal da métrica
+        delta: Valor de variação (opcional)
+        delta_color: Cor da variação ("normal", "off", "inverse")
+        prefix: Prefixo para o valor (ex: "R$")
+        suffix: Sufixo para o valor (ex: "%")
+        help_text: Texto de ajuda exibido ao passar o mouse (opcional)
+    """
+    # Formata o valor com prefixo e sufixo
+    formatted_value = f"{prefix}{value}{suffix}"
+    
+    # Formata o delta com prefixo e sufixo, se existir
+    formatted_delta = None
+    if delta is not None:
+        formatted_delta = f"{prefix}{delta}{suffix}"
+    
+    # Exibe a métrica
+    st.metric(
+        label=title,
+        value=formatted_value,
+        delta=formatted_delta,
+        delta_color=delta_color,
+        help=help_text
+    )
+
 def create_editable_table(df, key, columns=None, hide_index=True, on_change=None):
     """
     Cria uma tabela editável.

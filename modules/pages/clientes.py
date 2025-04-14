@@ -71,26 +71,46 @@ def registrar_cliente():
         if novo_cliente_adicionado:
             df_clientes = carregar_dados_sob_demanda("Clientes", force_reload=True)
         
-        # Exibir a tabela de clientes
-        if not df_clientes.empty:
+        # Configuração das colunas para a tabela de clientes
+        column_config = {
+            "Nome": st.column_config.TextColumn("Nome/Razão Social"),
+            "CPF": st.column_config.TextColumn("CPF/CNPJ"),
+            "Endereço": st.column_config.TextColumn("Endereço"),
+            "Contato": st.column_config.TextColumn("Contato"),
+            "TipoNF": st.column_config.SelectboxColumn("Tipo de Nota Fiscal", options=["Pessoa Física", "Pessoa Jurídica", "Não Aplicável"])
+        }
+        
+        # Definir a ordem das colunas
+        column_order = ["Nome", "CPF", "Endereço", "Contato", "TipoNF"]
+        
+        # Criar formulário para a tabela editável
+        with st.form("clientes_reg_form"):
+            # Exibe a tabela editável com configuração personalizada
             edited_df = st.data_editor(
                 df_clientes,
                 use_container_width=True,
                 hide_index=True,
-                num_rows="fixed"
+                num_rows="dynamic",
+                key="clientes_reg_editor",
+                column_config=column_config,
+                column_order=column_order,
+                height=400
             )
             
-            # Verificar se houve alterações
-            if not edited_df.equals(df_clientes):
-                # Salvar alterações
-                if salvar_dados_sheets(edited_df, "Clientes"):
-                    st.success("Alterações salvas com sucesso!")
-                    # Limpar o cache para forçar recarregar os dados
-                    st.session_state.local_data["clientes"] = pd.DataFrame()
-                else:
-                    st.error("Erro ao salvar alterações.")
-        else:
-            st.info("Nenhum cliente cadastrado.")
+            # Botão para salvar alterações
+            if st.form_submit_button("Salvar Alterações", use_container_width=True):
+                with st.spinner("Salvando dados..."):
+                    try:
+                        # Atualizar os dados no Google Sheets
+                        if salvar_dados_sheets(edited_df, "Clientes"):
+                            st.success("Dados salvos com sucesso!")
+                            # Limpar o cache para forçar recarregar os dados
+                            st.session_state.local_data["clientes"] = pd.DataFrame()
+                            st.rerun()
+                        else:
+                            st.error("Erro ao salvar dados no Google Sheets.")
+                    except Exception as e:
+                        st.error(f"Erro ao salvar dados: {str(e)}")
     
     except Exception as e:
         st.error(f"Erro ao carregar dados dos clientes: {e}")
@@ -119,29 +139,63 @@ def clientes():
     else:
         df_filtrado = df_clientes
     
-    # Exibir a tabela de clientes
+    # Configuração das colunas para a tabela de clientes
+    column_config = {
+        "Nome": st.column_config.TextColumn("Nome/Razão Social"),
+        "CPF": st.column_config.TextColumn("CPF/CNPJ"),
+        "Endereço": st.column_config.TextColumn("Endereço"),
+        "Contato": st.column_config.TextColumn("Contato"),
+        "TipoNF": st.column_config.SelectboxColumn("Tipo de Nota Fiscal", options=["Pessoa Física", "Pessoa Jurídica", "Não Aplicável"])
+    }
+    
+    # Definir a ordem das colunas
+    column_order = ["Nome", "CPF", "Endereço", "Contato", "TipoNF"]
+    
+    # Criar formulário para a tabela editável
     if not df_filtrado.empty:
-        edited_df = st.data_editor(
-            df_filtrado,
-            use_container_width=True,
-            hide_index=True,
-            num_rows="fixed"
-        )
-        
-        # Verificar se houve alterações
-        if not edited_df.equals(df_filtrado):
-            # Atualizar o DataFrame original
-            for index, row in edited_df.iterrows():
-                for col in df_clientes.columns:
-                    df_clientes.loc[index, col] = row[col]
+        with st.form("clientes_page_form"):
+            # Exibe a tabela editável com configuração personalizada
+            edited_df = st.data_editor(
+                df_filtrado,
+                use_container_width=True,
+                hide_index=True,
+                num_rows="dynamic",
+                key="clientes_page_editor",
+                column_config=column_config,
+                column_order=column_order,
+                height=400
+            )
             
-            # Salvar alterações
-            if salvar_dados_sheets(df_clientes, "Clientes"):
-                st.success("Alterações salvas com sucesso!")
-                # Limpar o cache para forçar recarregar os dados
-                st.session_state.local_data["clientes"] = pd.DataFrame()
-            else:
-                st.error("Erro ao salvar alterações.")
+            # Botão para salvar alterações
+            if st.form_submit_button("Salvar Alterações", use_container_width=True):
+                with st.spinner("Salvando dados..."):
+                    try:
+                        # Recarregar os dados mais recentes do Google Sheets
+                        df_completo = carregar_dados_sob_demanda("Clientes")
+                        
+                        # Remover os registros que foram editados para evitar duplicações
+                        if filtro:
+                            # Se há filtro, manter os registros que não foram filtrados
+                            mask = ~(df_completo["Nome"].str.contains(filtro, case=False, na=False) | 
+                                   df_completo["CPF"].str.contains(filtro, case=False, na=False))
+                            df_completo = df_completo[mask]
+                        else:
+                            # Se não há filtro, substituir completamente os dados
+                            df_completo = pd.DataFrame(columns=df_clientes.columns)
+                        
+                        # Combinar os dados originais com os editados
+                        df_final = pd.concat([df_completo, edited_df], ignore_index=True)
+                        
+                        # Atualizar os dados no Google Sheets
+                        if salvar_dados_sheets(df_final, "Clientes"):
+                            st.success("Dados salvos com sucesso!")
+                            # Limpar o cache para forçar recarregar os dados
+                            st.session_state.local_data["clientes"] = pd.DataFrame()
+                            st.rerun()
+                        else:
+                            st.error("Erro ao salvar dados no Google Sheets.")
+                    except Exception as e:
+                        st.error(f"Erro ao salvar dados: {str(e)}")
     else:
         st.info("Nenhum cliente encontrado.")
     

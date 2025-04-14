@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from modules.data.sheets import carregar_dados_sob_demanda, salvar_dados_sheets
+from modules.ui.tables import create_editable_table_with_delete_button
 
 def salvar_categorias(df, sheet_name):
     """
@@ -41,22 +42,8 @@ def registrar_categoria():
         # Exibir lista de categorias existentes
         st.write("### Categorias Existentes")
         
-        # Exibir a tabela de categorias
-        if not df_categorias_receitas.empty:
-            edited_df = st.data_editor(
-                df_categorias_receitas,
-                use_container_width=True,
-                hide_index=True,
-                num_rows="fixed"
-            )
-            
-            # Verificar se houve alterações
-            if not edited_df.equals(df_categorias_receitas):
-                # Salvar alterações
-                if salvar_categorias(edited_df, "Categorias_Receitas"):
-                    st.success("Alterações salvas com sucesso!")
-                else:
-                    st.error("Erro ao salvar alterações.")
+        # Usar a nova função de tabela editável com coluna de seleção
+        create_editable_table_with_delete_button(df_categorias_receitas, "Categorias_Receitas", key_prefix="cat_receitas")
         
         # Formulário para adicionar nova categoria
         with st.form("nova_categoria_receita"):
@@ -91,22 +78,8 @@ def registrar_categoria():
         # Exibir lista de categorias existentes
         st.write("### Categorias Existentes")
         
-        # Exibir a tabela de categorias
-        if not df_categorias_despesas.empty:
-            edited_df = st.data_editor(
-                df_categorias_despesas,
-                use_container_width=True,
-                hide_index=True,
-                num_rows="fixed"
-            )
-            
-            # Verificar se houve alterações
-            if not edited_df.equals(df_categorias_despesas):
-                # Salvar alterações
-                if salvar_categorias(edited_df, "Categorias_Despesas"):
-                    st.success("Alterações salvas com sucesso!")
-                else:
-                    st.error("Erro ao salvar alterações.")
+        # Usar a nova função de tabela editável com coluna de seleção
+        create_editable_table_with_delete_button(df_categorias_despesas, "Categorias_Despesas", key_prefix="cat_despesas")
         
         # Formulário para adicionar nova categoria
         with st.form("nova_categoria_despesa"):
