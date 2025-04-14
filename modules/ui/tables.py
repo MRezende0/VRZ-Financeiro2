@@ -135,8 +135,8 @@ def format_date_columns(df):
     
     for col in date_columns:
         try:
-            # Tenta converter para datetime
-            df_formatted[col] = pd.to_datetime(df[col], errors='coerce', dayfirst=True)
+            # Tenta converter para datetime com formato específico
+            df_formatted[col] = pd.to_datetime(df[col], errors='coerce', format="%d/%m/%Y")
             # Formata para DD/MM/YYYY
             df_formatted[col] = df_formatted[col].dt.strftime('%d/%m/%Y')
         except:

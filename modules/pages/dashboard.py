@@ -38,9 +38,9 @@ def aplicar_filtros(df, filtros, tipo="receitas"):
     # Converter colunas de data
     try:
         if tipo == "receitas":
-            df_filtrado["DataRecebimento"] = pd.to_datetime(df_filtrado["DataRecebimento"], dayfirst=True, errors='coerce')
+            df_filtrado["DataRecebimento"] = pd.to_datetime(df_filtrado["DataRecebimento"], format="%d/%m/%Y", errors='coerce')
         elif tipo == "despesas":
-            df_filtrado["DataPagamento"] = pd.to_datetime(df_filtrado["DataPagamento"], dayfirst=True, errors='coerce')
+            df_filtrado["DataPagamento"] = pd.to_datetime(df_filtrado["DataPagamento"], format="%d/%m/%Y", errors='coerce')
     except:
         pass
     

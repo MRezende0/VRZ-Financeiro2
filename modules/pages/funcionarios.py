@@ -3,7 +3,6 @@ import pandas as pd
 import plotly.express as px
 from modules.data.sheets import carregar_dados_sob_demanda, salvar_dados_sheets, adicionar_linha_sheets
 from utils.config import FUNCIONARIOS
-from modules.ui.tables import create_editable_table_with_delete_button, format_date_columns
 
 def registrar_funcionario():
     """
@@ -66,8 +65,46 @@ def registrar_funcionario():
         # Exibir lista de funcionários
         st.write("### Lista de Funcionários")
         
-        # Usar a nova função de tabela editável com coluna de seleção
-        create_editable_table_with_delete_button(df_funcionarios, "Funcionarios", key_prefix="funcionarios")
+        # Configuração das colunas para a tabela de funcionários
+        column_config = {
+            "Nome": st.column_config.TextColumn("Nome"),
+            "CPF": st.column_config.TextColumn("CPF"),
+            "Cargo": st.column_config.SelectboxColumn("Cargo", options=["Engenheiro", "Arquiteto", "Projetista", "Administrativo", "Outros"]),
+            "Contato": st.column_config.TextColumn("Contato"),
+            "Endereço": st.column_config.TextColumn("Endereço")
+        }
+        
+        # Definir a ordem das colunas
+        column_order = ["Nome", "CPF", "Cargo", "Contato", "Endereço"]
+        
+        # Criar formulário para a tabela editável
+        with st.form("funcionarios_form"):
+            # Exibe a tabela editável com configuração personalizada
+            edited_df = st.data_editor(
+                df_funcionarios,
+                use_container_width=True,
+                hide_index=True,
+                num_rows="dynamic",
+                key="funcionarios_editor",
+                column_config=column_config,
+                column_order=column_order,
+                height=400
+            )
+            
+            # Botão para salvar alterações
+            if st.form_submit_button("Salvar Alterações", use_container_width=True):
+                with st.spinner("Salvando dados..."):
+                    try:
+                        # Atualizar os dados no Google Sheets
+                        if salvar_dados_sheets(edited_df, "Funcionarios"):
+                            # Limpar o cache para forçar recarregar os dados
+                            st.session_state.local_data["funcionarios"] = pd.DataFrame()
+                            st.success("Dados salvos com sucesso!")
+                            st.rerun()
+                        else:
+                            st.error("Erro ao salvar dados no Google Sheets.")
+                    except Exception as e:
+                        st.error(f"Erro ao salvar dados: {str(e)}")
     
     except Exception as e:
         st.error(f"Erro ao carregar dados dos funcionários: {e}")

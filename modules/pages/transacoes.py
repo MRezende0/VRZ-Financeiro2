@@ -3,7 +3,6 @@ import pandas as pd
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from modules.data.sheets import carregar_dados_sob_demanda, adicionar_linha_sheets, salvar_dados_sheets
-from modules.ui.tables import create_editable_table_with_delete_button, format_date_columns
 
 def salvar_dados(df, sheet_name):
     """
@@ -27,13 +26,17 @@ def registrar_receita():
     df_projetos = carregar_dados_sob_demanda("Projetos")
     df_receitas = carregar_dados_sob_demanda("Receitas")
     
-    # Formatar colunas de data e garantir que sejam strings
-    df_receitas = format_date_columns(df_receitas)
-    
-    # Garantir que todas as colunas de data sejam strings
+    # Formatar colunas de data
     for col in df_receitas.columns:
         if "Data" in col:
-            df_receitas[col] = df_receitas[col].astype(str)
+            try:
+                # Tenta converter para datetime com formato específico
+                df_receitas[col] = pd.to_datetime(df_receitas[col], errors='coerce', format="%d/%m/%Y")
+                # Formata para DD/MM/YYYY
+                df_receitas[col] = df_receitas[col].dt.strftime('%d/%m/%Y')
+            except:
+                # Se falhar, garante que a coluna seja do tipo string
+                df_receitas[col] = df_receitas[col].astype(str)
     
     # Verificar se os dados foram carregados corretamente
     if df_categorias_receitas.empty or "Categoria" not in df_categorias_receitas.columns:
@@ -82,8 +85,46 @@ def registrar_receita():
     # Exibir lista de receitas
     st.write("### Lista de Receitas")
     
-    # Usar a nova função de tabela editável com coluna de seleção
-    create_editable_table_with_delete_button(df_receitas, "Receitas", key_prefix="receitas")
+    # Configuração das colunas para a tabela de receitas
+    column_config = {
+        "DataRecebimento": st.column_config.TextColumn("Data de Recebimento"),
+        "Descrição": st.column_config.TextColumn("Descrição"),
+        "Categoria": st.column_config.SelectboxColumn("Categoria", options=df_categorias_receitas["Categoria"].tolist() if not df_categorias_receitas.empty else []),
+        "ValorTotal": st.column_config.NumberColumn("Valor Total", min_value=0.0, step=0.01, format="%.2f"),
+        "FormaPagamento": st.column_config.SelectboxColumn("Forma de Pagamento", options=["Pix", "Transferência", "Dinheiro", "Cheque", "Cartão de Crédito", "Outros"]),
+        "Projeto": st.column_config.SelectboxColumn("Projeto", options=[""] + list(df_projetos["Projeto"]) if not df_projetos.empty and "Projeto" in df_projetos.columns else [""]),
+        "NF": st.column_config.SelectboxColumn("Nota Fiscal", options=["Sim", "Não"])
+    }
+    
+    # Definir a ordem das colunas
+    column_order = ["DataRecebimento", "Descrição", "Categoria", "ValorTotal", "FormaPagamento", "Projeto", "NF"]
+    
+    # Criar formulário para a tabela editável
+    with st.form("receitas_form"):
+        # Exibe a tabela editável com configuração personalizada
+        edited_df = st.data_editor(
+            df_receitas,
+            use_container_width=True,
+            hide_index=True,
+            num_rows="dynamic",
+            key="receitas_editor",
+            column_config=column_config,
+            column_order=column_order,
+            height=400
+        )
+        
+        # Botão para salvar alterações
+        if st.form_submit_button("Salvar Alterações", use_container_width=True):
+            with st.spinner("Salvando dados..."):
+                try:
+                    # Atualizar os dados no Google Sheets
+                    if salvar_dados_sheets(edited_df, "Receitas"):
+                        # Limpar o cache para forçar recarregar os dados
+                        salvar_dados(edited_df, "receitas")
+                        st.success("Dados salvos com sucesso!")
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao salvar dados: {str(e)}")
 
 def registrar_despesa():
     """
@@ -95,13 +136,17 @@ def registrar_despesa():
     df_projetos = carregar_dados_sob_demanda("Projetos")
     df_despesas = carregar_dados_sob_demanda("Despesas")
     
-    # Formatar colunas de data e garantir que sejam strings
-    df_despesas = format_date_columns(df_despesas)
-    
-    # Garantir que todas as colunas de data sejam strings
+    # Formatar colunas de data
     for col in df_despesas.columns:
         if "Data" in col:
-            df_despesas[col] = df_despesas[col].astype(str)
+            try:
+                # Tenta converter para datetime com formato específico
+                df_despesas[col] = pd.to_datetime(df_despesas[col], errors='coerce', format="%d/%m/%Y")
+                # Formata para DD/MM/YYYY
+                df_despesas[col] = df_despesas[col].dt.strftime('%d/%m/%Y')
+            except:
+                # Se falhar, garante que a coluna seja do tipo string
+                df_despesas[col] = df_despesas[col].astype(str)
     
     st.subheader("📤 Despesa")
     
@@ -169,8 +214,50 @@ def registrar_despesa():
     # Exibir lista de despesas
     st.write("### Lista de Despesas")
     
-    # Usar a nova função de tabela editável com coluna de seleção
-    create_editable_table_with_delete_button(df_despesas, "Despesas", key_prefix="despesas")
+    # Configuração das colunas para a tabela de despesas
+    column_config = {
+        "DataPagamento": st.column_config.TextColumn("Data de Pagamento"),
+        "Descrição": st.column_config.TextColumn("Descrição"),
+        "Categoria": st.column_config.SelectboxColumn("Categoria", options=df_categorias_despesas["Categoria"].tolist() if not df_categorias_despesas.empty else []),
+        "ValorTotal": st.column_config.NumberColumn("Valor Total", min_value=0.0, step=0.01, format="%.2f"),
+        "Parcelas": st.column_config.TextColumn("Parcelas"),
+        "FormaPagamento": st.column_config.SelectboxColumn("Forma de Pagamento", options=["Pix", "Transferência", "Dinheiro", "Cheque", "Cartão de Crédito", "Outros"]),
+        "Responsável": st.column_config.SelectboxColumn("Responsável", options=["Bruno", "Victor"]),
+        "Fornecedor": st.column_config.SelectboxColumn("Fornecedor", options=df_fornecedor_despesas["Fornecedor"].tolist() if not df_fornecedor_despesas.empty else []),
+        "Projeto": st.column_config.SelectboxColumn("Projeto", options=[""] + list(df_projetos["Projeto"]) if not df_projetos.empty else [""]),
+        "NF": st.column_config.SelectboxColumn("Nota Fiscal", options=["Sim", "Não"])
+    }
+    
+    # Definir a ordem das colunas
+    column_order = ["DataPagamento", "Descrição", "Categoria", "ValorTotal", "Parcelas", "FormaPagamento", 
+                   "Responsável", "Fornecedor", "Projeto", "NF"]
+    
+    # Criar formulário para a tabela editável
+    with st.form("despesas_form"):
+        # Exibe a tabela editável com configuração personalizada
+        edited_df = st.data_editor(
+            df_despesas,
+            use_container_width=True,
+            hide_index=True,
+            num_rows="dynamic",
+            key="despesas_editor",
+            column_config=column_config,
+            column_order=column_order,
+            height=400
+        )
+        
+        # Botão para salvar alterações
+        if st.form_submit_button("Salvar Alterações", use_container_width=True):
+            with st.spinner("Salvando dados..."):
+                try:
+                    # Atualizar os dados no Google Sheets
+                    if salvar_dados_sheets(edited_df, "Despesas"):
+                        # Limpar o cache para forçar recarregar os dados
+                        salvar_dados(edited_df, "despesas")
+                        st.success("Dados salvos com sucesso!")
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao salvar dados: {str(e)}")
 
 def registrar():
     """

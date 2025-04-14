@@ -347,9 +347,3 @@ def projetos():
                         st.error(f"Erro ao salvar dados: {str(e)}")
     else:
         st.info("Nenhum projeto encontrado com os filtros selecionados.")
-    
-    # Botão para adicionar novo projeto
-    if st.button("Adicionar Novo Projeto"):
-        st.session_state.page = "registrar"
-        st.session_state.tab = "Projeto"
-        st.rerun()

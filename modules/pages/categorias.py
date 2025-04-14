@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from modules.data.sheets import carregar_dados_sob_demanda, salvar_dados_sheets
-from modules.ui.tables import create_editable_table_with_delete_button
 
 def salvar_categorias(df, sheet_name):
     """
@@ -42,8 +41,40 @@ def registrar_categoria():
         # Exibir lista de categorias existentes
         st.write("### Categorias Existentes")
         
-        # Usar a nova função de tabela editável com coluna de seleção
-        create_editable_table_with_delete_button(df_categorias_receitas, "Categorias_Receitas", key_prefix="cat_receitas")
+        # Configuração das colunas para a tabela de categorias de receitas
+        column_config = {
+            "Categoria": st.column_config.TextColumn("Categoria")
+        }
+        
+        # Definir a ordem das colunas
+        column_order = ["Categoria"]
+        
+        # Criar formulário para a tabela editável
+        with st.form("cat_receitas_form"):
+            # Exibe a tabela editável com configuração personalizada
+            edited_df = st.data_editor(
+                df_categorias_receitas,
+                use_container_width=True,
+                hide_index=True,
+                num_rows="dynamic",
+                key="cat_receitas_editor",
+                column_config=column_config,
+                column_order=column_order,
+                height=300
+            )
+            
+            # Botão para salvar alterações
+            if st.form_submit_button("Salvar Alterações", use_container_width=True):
+                with st.spinner("Salvando dados..."):
+                    try:
+                        # Atualizar os dados no Google Sheets
+                        if salvar_categorias(edited_df, "Categorias_Receitas"):
+                            st.success("Dados salvos com sucesso!")
+                            st.rerun()
+                        else:
+                            st.error("Erro ao salvar dados no Google Sheets.")
+                    except Exception as e:
+                        st.error(f"Erro ao salvar dados: {str(e)}")
         
         # Formulário para adicionar nova categoria
         with st.form("nova_categoria_receita"):
@@ -78,8 +109,40 @@ def registrar_categoria():
         # Exibir lista de categorias existentes
         st.write("### Categorias Existentes")
         
-        # Usar a nova função de tabela editável com coluna de seleção
-        create_editable_table_with_delete_button(df_categorias_despesas, "Categorias_Despesas", key_prefix="cat_despesas")
+        # Configuração das colunas para a tabela de categorias de despesas
+        column_config = {
+            "Categoria": st.column_config.TextColumn("Categoria")
+        }
+        
+        # Definir a ordem das colunas
+        column_order = ["Categoria"]
+        
+        # Criar formulário para a tabela editável
+        with st.form("cat_despesas_form"):
+            # Exibe a tabela editável com configuração personalizada
+            edited_df = st.data_editor(
+                df_categorias_despesas,
+                use_container_width=True,
+                hide_index=True,
+                num_rows="dynamic",
+                key="cat_despesas_editor",
+                column_config=column_config,
+                column_order=column_order,
+                height=300
+            )
+            
+            # Botão para salvar alterações
+            if st.form_submit_button("Salvar Alterações", use_container_width=True):
+                with st.spinner("Salvando dados..."):
+                    try:
+                        # Atualizar os dados no Google Sheets
+                        if salvar_categorias(edited_df, "Categorias_Despesas"):
+                            st.success("Dados salvos com sucesso!")
+                            st.rerun()
+                        else:
+                            st.error("Erro ao salvar dados no Google Sheets.")
+                    except Exception as e:
+                        st.error(f"Erro ao salvar dados: {str(e)}")
         
         # Formulário para adicionar nova categoria
         with st.form("nova_categoria_despesa"):
