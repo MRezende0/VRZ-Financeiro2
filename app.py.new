@@ -16,10 +16,7 @@ from modules.pages.funcionarios import funcionarios
 from modules.pages.relatorios import relatorios
 
 # Importar módulos de dados
-from modules.data.sheets import carregar_dados_iniciais
-
-# Importar módulos de UI
-from modules.ui.layout import create_sidebar
+from modules.data.sheets import carregar_dados_iniciais, carregar_dados_background
 
 # Aplicar patch SSL para resolver problemas de certificado
 patch_ssl()
@@ -55,10 +52,20 @@ def main_app():
     """
     Função principal que gerencia a navegação entre as diferentes páginas da aplicação.
     """
-    # Usar o layout padronizado para a sidebar
-    menu_option = create_sidebar()
+    st.sidebar.image("imagens/logo-cocal.png")
+    st.sidebar.title("Menu")
+    menu_option = st.sidebar.radio(
+        "Selecione a funcionalidade:",
+        ("Dashboard", "Registrar", "Projetos", "Funcionários", "Relatórios")
+    )
 
-    # Navegar para a página selecionada
+    # Botão "Sair" na parte inferior da sidebar
+    st.sidebar.markdown("---")  # Linha separadora
+    if st.sidebar.button("Sair", key="sair"):
+        st.session_state["logged_in"] = False
+        st.success("Você saiu do sistema.")
+        st.rerun()  # Atualiza a página para voltar à tela de login
+
     if menu_option == "Dashboard":
         dashboard()
     elif menu_option == "Registrar":
