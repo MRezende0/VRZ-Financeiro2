@@ -29,7 +29,7 @@ def registrar_cliente():
             col1, col2 = st.columns(2)
             
             with col1:
-                nome = st.text_input("Nome?Razão Social")
+                nome = st.text_input("Nome/Razão Social")
                 cpf = st.text_input("CPF/CNPJ")
             
             with col2:
@@ -41,9 +41,19 @@ def registrar_cliente():
             submit_cliente = st.form_submit_button("Registrar Cliente")
             
             if submit_cliente:
-                # Validar dados
+                # Validar campos obrigatórios
+                campos_invalidos = []
+                
+                # Nome é obrigatório
                 if not nome:
-                    st.error("O nome do cliente é obrigatório.")
+                    campos_invalidos.append("Nome/Razão Social")
+                
+                # Contato é obrigatório
+                if not contato:
+                    campos_invalidos.append("Contato")
+                
+                if campos_invalidos:
+                    st.error(f"Os seguintes campos são obrigatórios: {', '.join(campos_invalidos)}")
                 else:
                     # Criar dicionário com os dados do novo cliente
                     novo_cliente = {

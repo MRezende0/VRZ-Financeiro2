@@ -84,8 +84,9 @@ def create_editable_table_with_delete_button(df, sheet_name, key_prefix="table",
             if salvar_dados_sheets(df_updated, sheet_name):
                 st.success(f"{len(rows_to_delete)} registro(s) excluído(s) com sucesso!")
                 # Limpa o cache para forçar recarregar os dados
-                st.session_state.local_data[sheet_name.lower()] = pd.DataFrame()
-                # Recarrega os dados
+                st.session_state.local_data[sheet_name.lower()] = df_updated
+                # Força o recarregamento da página para mostrar as alterações
+                st.rerun()
                 return True
             else:
                 st.error("Erro ao excluir registros.")

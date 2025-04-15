@@ -178,14 +178,58 @@ def salvar_dados_sheets(df, sheet_name):
         
         all_values = [headers] + values
         
-        # Limpa a planilha atual
-        worksheet.clear()
-        
-        # Adiciona um pequeno atraso para evitar problemas de rate limit
-        time.sleep(uniform(0.5, 1.0))
-        
-        # Atualiza a planilha com os novos dados
-        worksheet.update(all_values)
+        # Verifica se a planilha está vazia
+        current_data = worksheet.get_all_values()
+        if not current_data or len(current_data) <= 1:  # Vazia ou só tem cabeçalho
+            # Se estiver vazia, apenas atualiza com os novos dados
+            worksheet.update(all_values)
+        else:
+            # Se não estiver vazia, verifica se os cabeçalhos são iguais
+            current_headers = current_data[0]
+            if current_headers == headers:
+                # Cria um backup dos dados atuais antes de qualquer modificação
+                backup_data = current_data.copy()
+                
+                # Adiciona um pequeno atraso para evitar problemas de rate limit
+                time.sleep(uniform(0.5, 1.0))
+                
+                # Atualiza apenas as células necessárias em vez de limpar tudo
+                # Primeiro, atualiza o intervalo existente
+                if len(all_values) > 1:  # Se temos dados para atualizar
+                    try:
+                        # Atualiza o intervalo existente (preserva formatação e fórmulas)
+                        worksheet.update(all_values)
+                    except Exception as e:
+                        st.error(f"Erro ao atualizar dados: {e}. Tentando restaurar backup.")
+                        # Tenta restaurar o backup em caso de falha
+                        try:
+                            worksheet.clear()
+                            worksheet.update(backup_data)
+                            st.warning("Dados restaurados do backup após falha na atualização.")
+                        except:
+                            st.error("Não foi possível restaurar o backup. Contate o administrador.")
+                        return False
+            else:
+                # Se os cabeçalhos forem diferentes, tenta preservar os dados
+                st.warning(f"Os cabeçalhos da planilha '{sheet_name}' foram alterados. Tentando preservar os dados.")
+                
+                # Cria um backup dos dados atuais
+                backup_file = f"backups/{sheet_name}_{int(time.time())}.csv"
+                try:
+                    # Converte os dados atuais para DataFrame
+                    backup_df = pd.DataFrame(current_data[1:], columns=current_headers)
+                    # Salva o backup localmente
+                    backup_df.to_csv(backup_file, index=False)
+                    st.info(f"Backup dos dados criado em {backup_file}")
+                except Exception as e:
+                    st.warning(f"Não foi possível criar backup local: {e}")
+                
+                # Atualiza a planilha com os novos dados
+                try:
+                    worksheet.clear()
+                    worksheet.update(all_values)
+                except Exception as e:
+                    st.error(f"Erro ao atualizar dados com novos cabeçalhos: {e}")
         
         # Atualiza o cache local
         st.session_state.local_data[sheet_name] = df
@@ -211,27 +255,65 @@ def adicionar_linha_sheets(nova_linha, sheet_name):
         # Prepara os dados para serialização segura
         nova_linha = preparar_dados_para_sheets(nova_linha, is_dataframe=False)
         
-        # Carrega os dados atuais
-        df = carregar_dados_sheets(sheet_name)
+        # Conecta ao Google Sheets
+        spreadsheet = conectar_sheets()
+        if spreadsheet is None:
+            st.error("Não foi possível conectar ao Google Sheets.")
+            return False
         
-        # Verifica se o DataFrame está vazio
-        if df.empty and sheet_name in COLUNAS_ESPERADAS:
-            # Cria um DataFrame vazio com as colunas esperadas
-            df = pd.DataFrame(columns=COLUNAS_ESPERADAS[sheet_name])
+        # Verifica se a planilha está em cache
+        if sheet_name in st.session_state.worksheets_cache:
+            worksheet = st.session_state.worksheets_cache[sheet_name]
+        else:
+            # Tenta abrir a planilha pelo nome
+            try:
+                worksheet = spreadsheet.worksheet(sheet_name)
+            except:
+                # Se falhar, tenta abrir pelo ID (gid)
+                if sheet_name in SHEET_GIDS:
+                    worksheet = spreadsheet.get_worksheet_by_id(int(SHEET_GIDS[sheet_name]))
+                else:
+                    st.error(f"Planilha '{sheet_name}' não encontrada.")
+                    return False
+            
+            # Armazena a planilha em cache
+            st.session_state.worksheets_cache[sheet_name] = worksheet
         
-        # Verifica se todas as chaves do dicionário estão nas colunas do DataFrame
-        missing_cols = [col for col in nova_linha.keys() if col not in df.columns]
-        for col in missing_cols:
-            df[col] = ""
+        # Verifica se a planilha está vazia
+        current_data = worksheet.get_all_values()
+        if not current_data:
+            # Se estiver vazia, cria com as colunas esperadas
+            if sheet_name in COLUNAS_ESPERADAS:
+                headers = COLUNAS_ESPERADAS[sheet_name]
+            else:
+                headers = list(nova_linha.keys())
+            
+            # Prepara os valores da nova linha
+            row_values = []
+            for col in headers:
+                val = nova_linha.get(col, "")
+                row_values.append(converter_para_string_segura(val))
+            
+            # Atualiza a planilha com o cabeçalho e a nova linha
+            worksheet.update([headers, row_values])
+        else:
+            # Se não estiver vazia, adiciona a nova linha
+            headers = current_data[0]
+            
+            # Prepara os valores da nova linha na ordem correta dos cabeçalhos
+            row_values = []
+            for col in headers:
+                val = nova_linha.get(col, "")
+                row_values.append(converter_para_string_segura(val))
+            
+            # Adiciona a nova linha ao final da planilha
+            worksheet.append_row(row_values)
         
-        # Cria um novo DataFrame com a nova linha
-        nova_linha_df = pd.DataFrame([nova_linha])
+        # Atualiza o cache local
+        df = carregar_dados_sheets(sheet_name, force_reload=True)
+        st.session_state.local_data[sheet_name] = df
         
-        # Adiciona a nova linha ao DataFrame existente
-        df = pd.concat([df, nova_linha_df], ignore_index=True)
-        
-        # Salva o DataFrame atualizado
-        return salvar_dados_sheets(df, sheet_name)
+        return True
     
     except Exception as e:
         st.error(f"Erro ao adicionar linha na planilha '{sheet_name}': {e}")

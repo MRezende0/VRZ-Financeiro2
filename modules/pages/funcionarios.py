@@ -38,9 +38,19 @@ def registrar_funcionario():
             submit_funcionario = st.form_submit_button("Registrar Funcionário")
             
             if submit_funcionario:
-                # Validar dados
+                # Validar campos obrigatórios
+                campos_invalidos = []
+                
+                # Nome é obrigatório
                 if not nome:
-                    st.error("O nome do funcionário é obrigatório.")
+                    campos_invalidos.append("Nome")
+                
+                # Contato é obrigatório
+                if not contato:
+                    campos_invalidos.append("Contato")
+                
+                if campos_invalidos:
+                    st.error(f"Os seguintes campos são obrigatórios: {', '.join(campos_invalidos)}")
                 else:
                     # Criar dicionário com os dados do novo funcionário
                     novo_funcionario = {

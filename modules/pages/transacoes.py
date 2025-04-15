@@ -61,26 +61,42 @@ def registrar_receita():
             submit_receita = st.form_submit_button("Registrar Receita")
             
         if submit_receita:
-            # Cria um dicionário com os dados da nova receita
-            nova_receita = {
-                "DataRecebimento": data_recebimento.strftime("%d/%m/%Y"),
-                "Descrição": descricao,
-                "Categoria": categoria,
-                "ValorTotal": str(valor),  # Converte para string para evitar problemas de serialização
-                "FormaPagamento": forma_pagamento,
-                "Projeto": projeto,
-                "NF": "Não"  # Valor padrão para NF
-            }
+            # Validar campos obrigatórios
+            campos_invalidos = []
             
-            # Adiciona a nova receita ao Google Sheets
-            if adicionar_linha_sheets(nova_receita, "Receitas"):
-                st.success("Receita registrada com sucesso!")
-                # Limpar o cache para forçar recarregar os dados
-                st.session_state.local_data["receitas"] = pd.DataFrame()
-                # Recarregar os dados para exibir a nova receita na tabela
-                df_receitas = carregar_dados_sob_demanda("Receitas", force_reload=True)
+            # Data é obrigatória, mas já vem preenchida com a data atual
+            
+            # Valor é obrigatório e deve ser maior que zero
+            if valor <= 0:
+                campos_invalidos.append("Valor (deve ser maior que zero)")
+            
+            # Projeto é obrigatório
+            if not projeto:
+                campos_invalidos.append("Projeto")
+            
+            if campos_invalidos:
+                st.error(f"Os seguintes campos são obrigatórios: {', '.join(campos_invalidos)}")
             else:
-                st.error("Erro ao registrar receita.")
+                # Cria um dicionário com os dados da nova receita
+                nova_receita = {
+                    "DataRecebimento": data_recebimento.strftime("%d/%m/%Y"),
+                    "Descrição": descricao,
+                    "Categoria": categoria,
+                    "ValorTotal": str(valor),  # Converte para string para evitar problemas de serialização
+                    "FormaPagamento": forma_pagamento,
+                    "Projeto": projeto,
+                    "NF": "Não"  # Valor padrão para NF
+                }
+                
+                # Adiciona a nova receita ao Google Sheets
+                if adicionar_linha_sheets(nova_receita, "Receitas"):
+                    st.success("Receita registrada com sucesso!")
+                    # Limpar o cache para forçar recarregar os dados
+                    st.session_state.local_data["receitas"] = pd.DataFrame()
+                    # Recarregar os dados para exibir a nova receita na tabela
+                    df_receitas = carregar_dados_sob_demanda("Receitas", force_reload=True)
+                else:
+                    st.error("Erro ao registrar receita.")
     
     # Exibir lista de receitas
     st.write("### Lista de Receitas")
@@ -172,44 +188,60 @@ def registrar_despesa():
         submitted = st.form_submit_button("Registrar Despesa")
         
         if submitted:
-            # Calcula o valor de cada parcela
-            valor_parcela = round(valor / parcelas, 2)
+            # Validar campos obrigatórios
+            campos_invalidos = []
             
-            # Lista para armazenar as parcelas
-            lista_parcelas = []
+            # Data é obrigatória, mas já vem preenchida com a data atual
             
-            # Gera as parcelas
-            for i in range(parcelas):
-                data_parcela = data_pagamento + relativedelta(months=+i)  # Incrementa a data em 'i' meses
-                parcela_info = {
-                    "DataPagamento": data_parcela.strftime("%d/%m/%Y"),
-                    "Descrição": descricao,
-                    "Categoria": categoria,
-                    "ValorTotal": str(valor_parcela),  # Converte para string para evitar problemas de serialização
-                    "Parcelas": f"{i + 1}/{parcelas}",  # Identifica a parcela atual
-                    "FormaPagamento": forma_pagamento,
-                    "Responsável": responsavel,
-                    "Fornecedor": fornecedor,
-                    "Projeto": projeto,
-                    "NF": nf
-                }
-                lista_parcelas.append(parcela_info)
+            # Valor é obrigatório e deve ser maior que zero
+            if valor <= 0:
+                campos_invalidos.append("Valor (deve ser maior que zero)")
             
-            # Adiciona as parcelas ao Google Sheets
-            sucesso = True
-            for parcela in lista_parcelas:
-                if not adicionar_linha_sheets(parcela, "Despesas"):
-                    sucesso = False
-                    break
+            # Projeto é obrigatório
+            if not projeto:
+                campos_invalidos.append("Projeto")
             
-            if sucesso:
-                st.success(f"Despesa registrada com sucesso! {parcelas} parcela(s) criada(s).")
-                # Limpar o cache para forçar recarregar os dados
-                st.session_state.local_data["despesas"] = pd.DataFrame()
-                # Recarregar os dados para exibir a nova despesa na tabela
-                df_despesas = carregar_dados_sob_demanda("Despesas", force_reload=True)
+            if campos_invalidos:
+                st.error(f"Os seguintes campos são obrigatórios: {', '.join(campos_invalidos)}")
             else:
-                st.error("Erro ao registrar despesa.")
+                # Calcula o valor de cada parcela
+                valor_parcela = round(valor / parcelas, 2)
+                
+                # Lista para armazenar as parcelas
+                lista_parcelas = []
+                
+                # Gera as parcelas
+                for i in range(parcelas):
+                    data_parcela = data_pagamento + relativedelta(months=+i)  # Incrementa a data em 'i' meses
+                    parcela_info = {
+                        "DataPagamento": data_parcela.strftime("%d/%m/%Y"),
+                        "Descrição": descricao,
+                        "Categoria": categoria,
+                        "ValorTotal": str(valor_parcela),  # Converte para string para evitar problemas de serialização
+                        "Parcelas": f"{i + 1}/{parcelas}",  # Identifica a parcela atual
+                        "FormaPagamento": forma_pagamento,
+                        "Responsável": responsavel,
+                        "Fornecedor": fornecedor,
+                        "Projeto": projeto,
+                        "NF": nf
+                    }
+                    lista_parcelas.append(parcela_info)
+                
+                # Adiciona as parcelas ao Google Sheets
+                sucesso = True
+                for parcela in lista_parcelas:
+                    if not adicionar_linha_sheets(parcela, "Despesas"):
+                        sucesso = False
+                        break
+                
+                if sucesso:
+                    st.success(f"Despesa registrada com sucesso! {parcelas} parcela(s) criada(s).")
+                    # Limpar o cache para forçar recarregar os dados
+                    st.session_state.local_data["despesas"] = pd.DataFrame()
+                    # Recarregar os dados para exibir a nova despesa na tabela
+                    df_despesas = carregar_dados_sob_demanda("Despesas", force_reload=True)
+                else:
+                    st.error("Erro ao registrar despesa.")
     
     # Exibir lista de despesas
     st.write("### Lista de Despesas")

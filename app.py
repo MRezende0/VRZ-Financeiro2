@@ -15,7 +15,6 @@ from modules.pages.transacoes import registrar
 from modules.pages.projetos import projetos
 from modules.pages.funcionarios import funcionarios
 from modules.pages.relatorios import relatorios
-from modules.pages.admin import admin
 
 # Importar módulos de dados
 from modules.data.sheets import carregar_dados_iniciais, verificar_todas_planilhas
@@ -79,8 +78,6 @@ def main_app():
         funcionarios()
     elif menu_option == "Relatórios":
         relatorios()
-    elif menu_option == "Admin":
-        admin()
 
 if __name__ == "__main__":
     if "logged_in" not in st.session_state:

@@ -45,8 +45,8 @@ def local_css():
             [data-testid="stDataFrameResizable"] tbody tr td:first-child {
                 display: none !important;
             }
-            /* Ocultar botões de exclusão de linhas */
-            button[kind="secondaryFormSubmit"] {
+            /* Ocultar apenas botões específicos de exclusão de linhas nas tabelas editáveis */
+            [data-testid="stDataFrameResizable"] button[kind="secondaryFormSubmit"] {
                 display: none !important;
             }
         </style>

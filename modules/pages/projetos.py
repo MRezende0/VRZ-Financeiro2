@@ -120,49 +120,59 @@ def registrar_projeto():
         submit = st.form_submit_button("Registrar Projeto")
 
     if submit:
-        # Converter datas para string no formato DD/MM/YYYY
-        data_inicio_str = DataInicio.strftime("%d/%m/%Y") if DataInicio else ""
-        data_final_str = DataFinal.strftime("%d/%m/%Y") if DataFinal else ""
+        # Validar campos obrigatórios
+        campos_invalidos = []
         
-        # Converter valores numéricos para string para evitar problemas de serialização
-        valor_total_str = str(ValorTotal) if ValorTotal is not None else "0"
-        m2_str = str(m2) if m2 is not None else "0"
-        parcelas_str = str(Parcelas) if Parcelas is not None else "0"
+        # ID Projeto é obrigatório
+        if not Projeto:
+            campos_invalidos.append("ID Projeto")
         
-        novo_projeto = pd.DataFrame({
-            "Projeto": [Projeto],
-            "Cliente": [Cliente],
-            "Localizacao": [Localizacao],
-            "Placa": [Placa],
-            "Post": [Post],
-            "DataInicio": [data_inicio_str],
-            "DataFinal": [data_final_str],
-            "Contrato": [Contrato],
-            "Status": [Status],
-            "Briefing": [Briefing],
-            "Arquiteto": [Arquiteto],
-            "Tipo": [Tipo],
-            "Pacote": [Pacote],
-            "m2": [m2_str],
-            "Parcelas": [parcelas_str],
-            "ValorTotal": [valor_total_str],
-            "ResponsávelElétrico": [ResponsávelElétrico],
-            "ResponsávelHidráulico": [ResponsávelHidráulico],
-            "ResponsávelModelagem": [ResponsávelModelagem],
-            "ResponsávelDetalhamento": [ResponsávelDetalhamento]
-        })
-        df_projetos = pd.concat([df_projetos, novo_projeto], ignore_index=True)
-        salvar_projetos(df_projetos)
-        st.success("Projeto registrado com sucesso!")
-        # Recarregar os dados para exibir o novo projeto na tabela
-        df_projetos = carregar_dados_sob_demanda("Projetos", force_reload=True)
-        # Formatar colunas de data e garantir que sejam strings
-        df_projetos = format_date_columns(df_projetos)
-        
-        # Garantir que todas as colunas de data sejam strings
-        for col in df_projetos.columns:
-            if "Data" in col:
-                df_projetos[col] = df_projetos[col].astype(str)
+        if campos_invalidos:
+            st.error(f"Os seguintes campos são obrigatórios: {', '.join(campos_invalidos)}")
+        else:
+            # Converter datas para string no formato DD/MM/YYYY
+            data_inicio_str = DataInicio.strftime("%d/%m/%Y") if DataInicio else ""
+            data_final_str = DataFinal.strftime("%d/%m/%Y") if DataFinal else ""
+            
+            # Converter valores numéricos para string para evitar problemas de serialização
+            valor_total_str = str(ValorTotal) if ValorTotal is not None else "0"
+            m2_str = str(m2) if m2 is not None else "0"
+            parcelas_str = str(Parcelas) if Parcelas is not None else "0"
+            
+            novo_projeto = pd.DataFrame({
+                "Projeto": [Projeto],
+                "Cliente": [Cliente],
+                "Localizacao": [Localizacao],
+                "Placa": [Placa],
+                "Post": [Post],
+                "DataInicio": [data_inicio_str],
+                "DataFinal": [data_final_str],
+                "Contrato": [Contrato],
+                "Status": [Status],
+                "Briefing": [Briefing],
+                "Arquiteto": [Arquiteto],
+                "Tipo": [Tipo],
+                "Pacote": [Pacote],
+                "m2": [m2_str],
+                "Parcelas": [parcelas_str],
+                "ValorTotal": [valor_total_str],
+                "ResponsávelElétrico": [ResponsávelElétrico],
+                "ResponsávelHidráulico": [ResponsávelHidráulico],
+                "ResponsávelModelagem": [ResponsávelModelagem],
+                "ResponsávelDetalhamento": [ResponsávelDetalhamento]
+            })
+            df_projetos = pd.concat([df_projetos, novo_projeto], ignore_index=True)
+            salvar_projetos(df_projetos)
+            st.success("Projeto registrado com sucesso!")
+            # Recarregar os dados para exibir o novo projeto na tabela
+            df_projetos = carregar_dados_sob_demanda("Projetos", force_reload=True)
+            # Formatar colunas de data e garantir que sejam strings
+            df_projetos = format_date_columns(df_projetos)
+            
+            # Garantir que todas as colunas de data sejam strings
+            for col in df_projetos.columns:
+                if "Data" in col:
+                    df_projetos[col] = df_projetos[col].astype(str)
     
     # Exibir lista de projetos
     st.write("### Lista de Projetos")
