@@ -88,161 +88,130 @@ def registrar_projeto():
         if "Data" in col:
             df_projetos[col] = df_projetos[col].astype(str)
     
-    st.subheader("🏗️ Projeto")
-
-    with st.form("form_projeto"):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            Projeto = st.text_input("ID Projeto")
-            Arquiteto = st.text_input("Arquiteto")
-            Localizacao = st.text_input("Localização")
-            Status = st.selectbox("Status", ["Concluído", "Em Andamento", "A fazer", "Impedido"])
-            ValorTotal = st.number_input("Valor Total", min_value=0.0, step=1.0, format="%.2f")
-            DataInicio = st.date_input("Data de Início")
-            Contrato = st.selectbox("Contrato", ["Feito", "A fazer"])
-            Placa = st.selectbox("Já possui placa na obra?", ["Sim", "Não"])
-            ResponsávelModelagem = st.text_input("Responsável pela Modelagem")
-            ResponsávelDetalhamento = st.text_input("Responsável pelo Detalhamento")
-        
-        with col2:
-            Cliente = st.text_input("Nome do cliente")
-            Tipo = st.selectbox("Tipo", ["Residencial", "Comercial"])
-            m2 = st.number_input("m²", min_value=0.0, step=1.0)
-            Pacote = st.selectbox("Pacote", ["Completo", "Estrutural e Hidráulico", "Estrutural e Elétrico"])
-            Parcelas = st.number_input("Parcelas", min_value=0, step=1)
-            DataFinal = st.date_input("Data de Conclusão Prevista")
-            Briefing = st.selectbox("Briefing", ["Feito", "A fazer"])
-            Post = st.selectbox("Já foi feito o post do projeto?", ["Sim", "Não"])
-            ResponsávelElétrico = st.text_input("Responsável pelo Elétrico")
-            ResponsávelHidráulico = st.text_input("Responsável pelo Hidráulico")
-        
-        submit = st.form_submit_button("Registrar Projeto")
-
-    if submit:
-        # Validar campos obrigatórios
-        campos_invalidos = []
-        
-        # ID Projeto é obrigatório
-        if not Projeto:
-            campos_invalidos.append("ID Projeto")
-        
-        if campos_invalidos:
-            st.error(f"Os seguintes campos são obrigatórios: {', '.join(campos_invalidos)}")
-        else:
-            # Converter datas para string no formato DD/MM/YYYY
-            data_inicio_str = DataInicio.strftime("%d/%m/%Y") if DataInicio else ""
-            data_final_str = DataFinal.strftime("%d/%m/%Y") if DataFinal else ""
-            
-            # Converter valores numéricos para string para evitar problemas de serialização
-            valor_total_str = str(ValorTotal) if ValorTotal is not None else "0"
-            m2_str = str(m2) if m2 is not None else "0"
-            parcelas_str = str(Parcelas) if Parcelas is not None else "0"
-            
-            novo_projeto = pd.DataFrame({
-                "Projeto": [Projeto],
-                "Cliente": [Cliente],
-                "Localizacao": [Localizacao],
-                "Placa": [Placa],
-                "Post": [Post],
-                "DataInicio": [data_inicio_str],
-                "DataFinal": [data_final_str],
-                "Contrato": [Contrato],
-                "Status": [Status],
-                "Briefing": [Briefing],
-                "Arquiteto": [Arquiteto],
-                "Tipo": [Tipo],
-                "Pacote": [Pacote],
-                "m2": [m2_str],
-                "Parcelas": [parcelas_str],
-                "ValorTotal": [valor_total_str],
-                "ResponsávelElétrico": [ResponsávelElétrico],
-                "ResponsávelHidráulico": [ResponsávelHidráulico],
-                "ResponsávelModelagem": [ResponsávelModelagem],
-                "ResponsávelDetalhamento": [ResponsávelDetalhamento]
-            })
-            df_projetos = pd.concat([df_projetos, novo_projeto], ignore_index=True)
-            salvar_projetos(df_projetos)
-            st.success("Projeto registrado com sucesso!")
-            # Recarregar os dados para exibir o novo projeto na tabela
-            df_projetos = carregar_dados_sob_demanda("Projetos", force_reload=True)
-            # Formatar colunas de data e garantir que sejam strings
-            df_projetos = format_date_columns(df_projetos)
-            
-            # Garantir que todas as colunas de data sejam strings
-            for col in df_projetos.columns:
-                if "Data" in col:
-                    df_projetos[col] = df_projetos[col].astype(str)
-    
-    # Exibir lista de projetos
-    st.write("### Lista de Projetos")
-    
-    # Formatar colunas de data
-    for col in df_projetos.columns:
-        if "Data" in col:
-            try:
-                # Tenta converter para datetime
-                df_projetos[col] = pd.to_datetime(df_projetos[col], errors='coerce', dayfirst=True)
-                # Formata para DD/MM/YYYY
-                df_projetos[col] = df_projetos[col].dt.strftime('%d/%m/%Y')
-            except:
-                # Se falhar, garante que a coluna seja do tipo string
-                df_projetos[col] = df_projetos[col].astype(str)
-    
-    # Configuração das colunas para a tabela de registro
-    column_config = {
-        "Projeto": st.column_config.TextColumn("Projeto"),
-        "Cliente": st.column_config.TextColumn("Cliente"),
-        "Status": st.column_config.SelectboxColumn("Status", options=["Concluído", "Em Andamento", "A fazer", "Impedido"]),
-        "Tipo": st.column_config.SelectboxColumn("Tipo", options=["Residencial", "Comercial"]),
-        "Localizacao": st.column_config.TextColumn("Localização"),
-        "Placa": st.column_config.SelectboxColumn("Placa", options=["Sim", "Não"]),
-        "Post": st.column_config.SelectboxColumn("Post", options=["Sim", "Não"]),
-        "DataInicio": st.column_config.TextColumn("Data de Início"),
-        "DataFinal": st.column_config.TextColumn("Data de Conclusão"),
-        "Contrato": st.column_config.SelectboxColumn("Contrato", options=["Feito", "A fazer"]),
-        "Briefing": st.column_config.SelectboxColumn("Briefing", options=["Feito", "A fazer"]),
-        "Arquiteto": st.column_config.TextColumn("Arquiteto"),
-        "Pacote": st.column_config.SelectboxColumn("Pacote", options=["Completo", "Estrutural e Hidráulico", "Estrutural e Elétrico"]),
-        "m2": st.column_config.NumberColumn("m²", min_value=0.0, step=1.0, format="%.2f"),
-        "Parcelas": st.column_config.NumberColumn("Parcelas", min_value=0, step=1, format="%.0f"),
-        "ValorTotal": st.column_config.NumberColumn("Valor Total", min_value=0.0, step=1.0, format="%.2f"),
-        "ResponsávelElétrico": st.column_config.TextColumn("Responsável Elétrico"),
-        "ResponsávelHidráulico": st.column_config.TextColumn("Responsável Hidráulico"),
-        "ResponsávelModelagem": st.column_config.TextColumn("Responsável Modelagem"),
-        "ResponsávelDetalhamento": st.column_config.TextColumn("Responsável Detalhamento")
-    }
-    
-    # Definir a ordem das colunas
-    column_order = ["Projeto", "Cliente", "Status", "Tipo", "Localizacao", "DataInicio", "DataFinal", 
-                   "Contrato", "Briefing", "Arquiteto", "Pacote", "m2", "ValorTotal", "Parcelas",
-                   "ResponsávelElétrico", "ResponsávelHidráulico", "ResponsávelModelagem", "ResponsávelDetalhamento",
-                   "Placa", "Post"]
-    
-    # Criar formulário para a tabela editável
-    with st.form("projetos_reg_form"):
-        # Exibe a tabela editável com configuração personalizada
-        edited_df = st.data_editor(
-            df_projetos,
-            use_container_width=True,
-            hide_index=True,
-            num_rows="dynamic",
-            key="projetos_reg_editor",
-            column_config=column_config,
-            column_order=column_order,
-            height=400
-        )
-        
-        # Botão para salvar alterações
-        if st.form_submit_button("Salvar Alterações", use_container_width=True):
-            with st.spinner("Salvando dados..."):
+    tabs = st.tabs(["Registrar Projeto", "Projetos Cadastrados"])
+    with tabs[0]:
+        st.markdown("### Novo Projeto")
+        with st.form("form_projeto"):
+            col1, col2 = st.columns(2)
+            with col1:
+                Projeto = st.text_input("ID Projeto")
+                Arquiteto = st.text_input("Arquiteto")
+                Localizacao = st.text_input("Localização")
+                Status = st.selectbox("Status", ["Concluído", "Em Andamento", "A fazer", "Impedido"])
+                ValorTotal = st.number_input("Valor Total", min_value=0.0, step=1.0, format="%.2f")
+                DataInicio = st.date_input("Data de Início")
+                Contrato = st.selectbox("Contrato", ["Feito", "A fazer"])
+                Placa = st.selectbox("Já possui placa na obra?", ["Sim", "Não"])
+                ResponsávelModelagem = st.text_input("Responsável pela Modelagem")
+                ResponsávelDetalhamento = st.text_input("Responsável pelo Detalhamento")
+            with col2:
+                Cliente = st.text_input("Nome do cliente")
+                Tipo = st.selectbox("Tipo", ["Residencial", "Comercial"])
+                m2 = st.number_input("m²", min_value=0.0, step=1.0)
+                Pacote = st.selectbox("Pacote", ["Completo", "Estrutural e Hidráulico", "Estrutural e Elétrico"])
+                Parcelas = st.number_input("Parcelas", min_value=0, step=1)
+                DataFinal = st.date_input("Data de Conclusão Prevista")
+                Briefing = st.selectbox("Briefing", ["Feito", "A fazer"])
+                Post = st.selectbox("Já foi feito o post do projeto?", ["Sim", "Não"])
+                ResponsávelElétrico = st.text_input("Responsável pelo Elétrico")
+                ResponsávelHidráulico = st.text_input("Responsável pelo Hidráulico")
+            submit = st.form_submit_button("Registrar Projeto")
+        if submit:
+            campos_invalidos = []
+            if not Projeto:
+                campos_invalidos.append("ID Projeto")
+            if campos_invalidos:
+                st.error(f"Os seguintes campos são obrigatórios: {', '.join(campos_invalidos)}")
+            else:
+                data_inicio_str = DataInicio.strftime("%d/%m/%Y") if DataInicio else ""
+                data_final_str = DataFinal.strftime("%d/%m/%Y") if DataFinal else ""
+                valor_total_str = str(ValorTotal) if ValorTotal is not None else "0"
+                m2_str = str(m2) if m2 is not None else "0"
+                parcelas_str = str(Parcelas) if Parcelas is not None else "0"
+                novo_projeto = pd.DataFrame({
+                    "Projeto": [Projeto],
+                    "Cliente": [Cliente],
+                    "Localizacao": [Localizacao],
+                    "Placa": [Placa],
+                    "Post": [Post],
+                    "DataInicio": [data_inicio_str],
+                    "DataFinal": [data_final_str],
+                    "Contrato": [Contrato],
+                    "Status": [Status],
+                    "Briefing": [Briefing],
+                    "Arquiteto": [Arquiteto],
+                    "Tipo": [Tipo],
+                    "Pacote": [Pacote],
+                    "m2": [m2_str],
+                    "Parcelas": [parcelas_str],
+                    "ValorTotal": [valor_total_str],
+                    "ResponsávelElétrico": [ResponsávelElétrico],
+                    "ResponsávelHidráulico": [ResponsávelHidráulico],
+                    "ResponsávelModelagem": [ResponsávelModelagem],
+                    "ResponsávelDetalhamento": [ResponsávelDetalhamento]
+                })
+                df_projetos = pd.concat([df_projetos, novo_projeto], ignore_index=True)
+                salvar_projetos(df_projetos)
+                st.success("Projeto registrado com sucesso!")
+                df_projetos = carregar_dados_sob_demanda("Projetos", force_reload=True)
+                df_projetos = format_date_columns(df_projetos)
+                for col in df_projetos.columns:
+                    if "Data" in col:
+                        df_projetos[col] = df_projetos[col].astype(str)
+    with tabs[1]:
+        st.markdown("### Projetos Cadastrados")
+        for col in df_projetos.columns:
+            if "Data" in col:
                 try:
-                    # Atualizar os dados no Google Sheets
-                    if salvar_projetos(edited_df):
-                        st.success("Dados salvos com sucesso!")
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"Erro ao salvar dados: {str(e)}")
+                    df_projetos[col] = pd.to_datetime(df_projetos[col], errors='coerce', dayfirst=True)
+                    df_projetos[col] = df_projetos[col].dt.strftime('%d/%m/%Y')
+                except:
+                    df_projetos[col] = df_projetos[col].astype(str)
+        column_config = {
+            "Projeto": st.column_config.TextColumn("Projeto"),
+            "Cliente": st.column_config.TextColumn("Cliente"),
+            "Status": st.column_config.SelectboxColumn("Status", options=["Concluído", "Em Andamento", "A fazer", "Impedido"]),
+            "Tipo": st.column_config.SelectboxColumn("Tipo", options=["Residencial", "Comercial"]),
+            "Localizacao": st.column_config.TextColumn("Localização"),
+            "Placa": st.column_config.SelectboxColumn("Placa", options=["Sim", "Não"]),
+            "Post": st.column_config.SelectboxColumn("Post", options=["Sim", "Não"]),
+            "DataInicio": st.column_config.TextColumn("Data de Início"),
+            "DataFinal": st.column_config.TextColumn("Data de Conclusão"),
+            "Contrato": st.column_config.SelectboxColumn("Contrato", options=["Feito", "A fazer"]),
+            "Briefing": st.column_config.SelectboxColumn("Briefing", options=["Feito", "A fazer"]),
+            "Arquiteto": st.column_config.TextColumn("Arquiteto"),
+            "Pacote": st.column_config.SelectboxColumn("Pacote", options=["Completo", "Estrutural e Hidráulico", "Estrutural e Elétrico"]),
+            "m2": st.column_config.NumberColumn("m²", min_value=0.0, step=1.0, format="%.2f"),
+            "Parcelas": st.column_config.NumberColumn("Parcelas", min_value=0, step=1, format="%.0f"),
+            "ValorTotal": st.column_config.NumberColumn("Valor Total", min_value=0.0, step=1.0, format="%.2f"),
+            "ResponsávelElétrico": st.column_config.TextColumn("Responsável Elétrico"),
+            "ResponsávelHidráulico": st.column_config.TextColumn("Responsável Hidráulico"),
+            "ResponsávelModelagem": st.column_config.TextColumn("Responsável Modelagem"),
+            "ResponsávelDetalhamento": st.column_config.TextColumn("Responsável Detalhamento")
+        }
+        column_order = ["Projeto", "Cliente", "Status", "Tipo", "Localizacao", "DataInicio", "DataFinal", 
+                       "Contrato", "Briefing", "Arquiteto", "Pacote", "m2", "ValorTotal", "Parcelas",
+                       "ResponsávelElétrico", "ResponsávelHidráulico", "ResponsávelModelagem", "ResponsávelDetalhamento",
+                       "Placa", "Post"]
+        with st.form("projetos_reg_form"):
+            edited_df = st.data_editor(
+                df_projetos,
+                use_container_width=True,
+                hide_index=True,
+                num_rows="dynamic",
+                key="projetos_reg_editor",
+                column_config=column_config,
+                column_order=column_order,
+                height=400
+            )
+            if st.form_submit_button("Salvar Alterações", use_container_width=True):
+                with st.spinner("Salvando dados..."):
+                    try:
+                        if salvar_projetos(edited_df):
+                            st.success("Dados salvos com sucesso!")
+                            st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao salvar dados: {str(e)}")
 
 def projetos():
     """

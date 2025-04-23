@@ -24,103 +24,76 @@ def registrar_cliente():
         novo_cliente_adicionado = False
         novo_cliente_dados = {}
         
-        # Formulário para adicionar novo cliente
-        with st.form("novo_cliente"):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                nome = st.text_input("Nome/Razão Social")
-                cpf = st.text_input("CPF/CNPJ")
-            
-            with col2:
-                contato = st.text_input("Contato")
-                tipo_nf = st.selectbox("Tipo de Nota Fiscal", ["Pessoa Física", "Pessoa Jurídica", "Não Aplicável"])
-
-            endereco = st.text_input("Endereço")
-            
-            submit_cliente = st.form_submit_button("Registrar Cliente")
-            
-            if submit_cliente:
-                # Validar campos obrigatórios
-                campos_invalidos = []
-                
-                # Nome é obrigatório
-                if not nome:
-                    campos_invalidos.append("Nome/Razão Social")
-                
-                # Contato é obrigatório
-                if not contato:
-                    campos_invalidos.append("Contato")
-                
-                if campos_invalidos:
-                    st.error(f"Os seguintes campos são obrigatórios: {', '.join(campos_invalidos)}")
-                else:
-                    # Criar dicionário com os dados do novo cliente
-                    novo_cliente = {
-                        "Nome": nome,
-                        "CPF": str(cpf),  # Garantir que CPF seja string
-                        "Endereço": endereco,
-                        "Contato": contato,
-                        "TipoNF": tipo_nf
-                    }
-                    
-                    # Adicionar o novo cliente ao DataFrame
-                    if adicionar_linha_sheets(novo_cliente, "Clientes"):
-                        st.success("Cliente registrado com sucesso!")
-                        novo_cliente_adicionado = True
-                        novo_cliente_dados = novo_cliente
-                        # Limpar o cache para forçar recarregar os dados
-                        st.session_state.local_data["clientes"] = pd.DataFrame()
+        # Abas para registrar e visualizar clientes
+        tabs = st.tabs(["Registrar Cliente", "Clientes Cadastrados"])
+        with tabs[0]:
+            st.markdown("### Novo Cliente")
+            with st.form("novo_cliente"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    nome = st.text_input("Nome/Razão Social")
+                    cpf = st.text_input("CPF/CNPJ")
+                with col2:
+                    contato = st.text_input("Contato")
+                    tipo_nf = st.selectbox("Tipo de Nota Fiscal", ["Engenharia", "Desenho Técnico"])
+                endereco = st.text_input("Endereço completo de cobrança")
+                submit_cliente = st.form_submit_button("Registrar Cliente")
+                if submit_cliente:
+                    campos_invalidos = []
+                    if not nome:
+                        campos_invalidos.append("Nome/Razão Social")
+                    if not contato:
+                        campos_invalidos.append("Contato")
+                    if campos_invalidos:
+                        st.error(f"Os seguintes campos são obrigatórios: {', '.join(campos_invalidos)}")
                     else:
-                        st.error("Erro ao registrar cliente.")
-        
-        # Exibir lista de clientes
-        st.write("### Lista de Clientes")
-        
-        # Recarregar dados se um novo cliente foi adicionado
-        if novo_cliente_adicionado:
-            df_clientes = carregar_dados_sob_demanda("Clientes", force_reload=True)
-        
-        # Configuração das colunas para a tabela de clientes
-        column_config = {
-            "Nome": st.column_config.TextColumn("Nome/Razão Social"),
-            "CPF": st.column_config.TextColumn("CPF/CNPJ"),
-            "Endereço": st.column_config.TextColumn("Endereço"),
-            "Contato": st.column_config.TextColumn("Contato"),
-            "TipoNF": st.column_config.SelectboxColumn("Tipo de Nota Fiscal", options=["Pessoa Física", "Pessoa Jurídica", "Não Aplicável"])
-        }
-        
-        # Definir a ordem das colunas
-        column_order = ["Nome", "CPF", "Endereço", "Contato", "TipoNF"]
-        
-        # Criar formulário para a tabela editável
-        with st.form("clientes_reg_form"):
-            # Exibe a tabela editável com configuração personalizada
-            edited_df = st.data_editor(
-                df_clientes,
-                use_container_width=True,
-                hide_index=True,
-                num_rows="dynamic",
-                key="clientes_reg_editor",
-                column_config=column_config,
-                column_order=column_order,
-                height=400
-            )
-            
-            # Botão para salvar alterações
-            if st.form_submit_button("Salvar Alterações", use_container_width=True):
-                with st.spinner("Salvando dados..."):
-                    try:
-                        # Atualizar os dados no Google Sheets
-                        if salvar_dados_sheets(edited_df, "Clientes"):
-                            st.success("Dados salvos com sucesso!")
-                            # Limpar o cache para forçar recarregar os dados
+                        novo_cliente = {
+                            "Nome": nome,
+                            "CPF": str(cpf),
+                            "Endereço": endereco,
+                            "Contato": contato,
+                            "TipoNF": tipo_nf
+                        }
+                        if adicionar_linha_sheets(novo_cliente, "Clientes"):
+                            st.success("Cliente registrado com sucesso!")
+                            novo_cliente_adicionado = True
                             st.session_state.local_data["clientes"] = pd.DataFrame()
-                            st.rerun()
                         else:
-                            st.error("Erro ao salvar dados no Google Sheets.")
-                    except Exception as e:
-                        st.error(f"Erro ao salvar dados: {str(e)}")
+                            st.error("Erro ao registrar cliente.")
+        with tabs[1]:
+            st.markdown("### Clientes Cadastrados")
+            if novo_cliente_adicionado:
+                df_clientes = carregar_dados_sob_demanda("Clientes", force_reload=True)
+            column_config = {
+                "Nome": st.column_config.TextColumn("Nome/Razão Social"),
+                "CPF": st.column_config.TextColumn("CPF/CNPJ"),
+                "Endereço": st.column_config.TextColumn("Endereço completo de cobrança"),
+                "Contato": st.column_config.TextColumn("Contato"),
+                "TipoNF": st.column_config.SelectboxColumn("Tipo de Nota Fiscal", options=["Engenharia", "Desenho Técnico"])
+            }
+            column_order = ["Nome", "CPF", "Endereço", "Contato", "TipoNF"]
+            with st.form("clientes_reg_form"): 
+                edited_df = st.data_editor(
+                    df_clientes,
+                    use_container_width=True,
+                    hide_index=True,
+                    num_rows="dynamic",
+                    key="clientes_reg_editor",
+                    column_config=column_config,
+                    column_order=column_order,
+                    height=400
+                )
+                if st.form_submit_button("Salvar Alterações", use_container_width=True):
+                    with st.spinner("Salvando dados..."):
+                        try:
+                            if salvar_dados_sheets(edited_df, "Clientes"):
+                                st.success("Dados salvos com sucesso!")
+                                st.session_state.local_data["clientes"] = pd.DataFrame()
+                                st.rerun()
+                            else:
+                                st.error("Erro ao salvar dados no Google Sheets.")
+                        except Exception as e:
+                            st.error(f"Erro ao salvar dados: {str(e)}")
     
     except Exception as e:
         st.error(f"Erro ao carregar dados dos clientes: {e}")

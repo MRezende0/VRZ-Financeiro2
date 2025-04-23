@@ -42,105 +42,78 @@ def registrar_receita():
     if df_categorias_receitas.empty or "Categoria" not in df_categorias_receitas.columns:
         df_categorias_receitas = pd.DataFrame({"Categoria": ["Pró-Labore", "Investimentos", "Freelance", "Outros"]})
     
-    with st.form("nova_receita"):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            data_recebimento = st.date_input("Data de Recebimento", datetime.now())
-            descricao = st.text_input("Descrição")
-            categoria = st.selectbox("Categoria", df_categorias_receitas["Categoria"].tolist())
-            
-        with col2:
-            valor = st.number_input("Valor (R$)", min_value=0.0, format="%.2f")
-            forma_pagamento = st.selectbox("Forma de Pagamento", ["Pix", "Transferência", "Dinheiro", "Cheque", "Cartão de Crédito", "Outros"])
-            projeto = st.selectbox("Projeto", [""] + list(df_projetos["Projeto"]) if not df_projetos.empty and "Projeto" in df_projetos.columns else [""])
-        
-        # Botões de ação
-        cols = st.columns(2)
-        with cols[0]:
-            submit_receita = st.form_submit_button("Registrar Receita")
-            
-        if submit_receita:
-            # Validar campos obrigatórios
-            campos_invalidos = []
-            
-            # Data é obrigatória, mas já vem preenchida com a data atual
-            
-            # Valor é obrigatório e deve ser maior que zero
-            if valor <= 0:
-                campos_invalidos.append("Valor (deve ser maior que zero)")
-            
-            # Projeto é obrigatório
-            if not projeto:
-                campos_invalidos.append("Projeto")
-            
-            if campos_invalidos:
-                st.error(f"Os seguintes campos são obrigatórios: {', '.join(campos_invalidos)}")
-            else:
-                # Cria um dicionário com os dados da nova receita
-                nova_receita = {
-                    "DataRecebimento": data_recebimento.strftime("%d/%m/%Y"),
-                    "Descrição": descricao,
-                    "Categoria": categoria,
-                    "ValorTotal": str(valor),  # Converte para string para evitar problemas de serialização
-                    "FormaPagamento": forma_pagamento,
-                    "Projeto": projeto,
-                    "NF": "Não"  # Valor padrão para NF
-                }
-                
-                # Adiciona a nova receita ao Google Sheets
-                if adicionar_linha_sheets(nova_receita, "Receitas"):
-                    st.success("Receita registrada com sucesso!")
-                    # Limpar o cache para forçar recarregar os dados
-                    st.session_state.local_data["receitas"] = pd.DataFrame()
-                    # Recarregar os dados para exibir a nova receita na tabela
-                    df_receitas = carregar_dados_sob_demanda("Receitas", force_reload=True)
+    # Abas para registrar e visualizar receitas
+    tabs = st.tabs(["Registrar Receita", "Receitas Cadastradas"])
+    with tabs[0]:
+        st.markdown("### Nova Receita")
+        with st.form("nova_receita"):
+            col1, col2 = st.columns(2)
+            with col1:
+                data_recebimento = st.date_input("Data de Recebimento", datetime.now())
+                descricao = st.text_input("Descrição")
+                categoria = st.selectbox("Categoria", df_categorias_receitas["Categoria"].tolist())
+            with col2:
+                valor = st.number_input("Valor (R$)", min_value=0.0, format="%.2f")
+                forma_pagamento = st.selectbox("Forma de Pagamento", ["Pix", "Transferência", "Dinheiro", "Cheque", "Cartão de Crédito", "Outros"])
+                projeto = st.selectbox("Projeto", [""] + list(df_projetos["Projeto"]) if not df_projetos.empty and "Projeto" in df_projetos.columns else [""])
+            cols = st.columns(2)
+            with cols[0]:
+                submit_receita = st.form_submit_button("Registrar Receita")
+            if submit_receita:
+                campos_invalidos = []
+                if valor <= 0:
+                    campos_invalidos.append("Valor (deve ser maior que zero)")
+                if not projeto:
+                    campos_invalidos.append("Projeto")
+                if campos_invalidos:
+                    st.error(f"Os seguintes campos são obrigatórios: {', '.join(campos_invalidos)}")
                 else:
-                    st.error("Erro ao registrar receita.")
-    
-    # Exibir lista de receitas
-    st.write("### Lista de Receitas")
-    
-    # Configuração das colunas para a tabela de receitas
-    column_config = {
-        "DataRecebimento": st.column_config.TextColumn("Data de Recebimento"),
-        "Descrição": st.column_config.TextColumn("Descrição"),
-        "Categoria": st.column_config.SelectboxColumn("Categoria", options=df_categorias_receitas["Categoria"].tolist() if not df_categorias_receitas.empty else []),
-        "ValorTotal": st.column_config.NumberColumn("Valor Total", min_value=0.0, step=0.01, format="%.2f"),
-        "FormaPagamento": st.column_config.SelectboxColumn("Forma de Pagamento", options=["Pix", "Transferência", "Dinheiro", "Cheque", "Cartão de Crédito", "Outros"]),
-        "Projeto": st.column_config.SelectboxColumn("Projeto", options=[""] + list(df_projetos["Projeto"]) if not df_projetos.empty and "Projeto" in df_projetos.columns else [""]),
-        "NF": st.column_config.SelectboxColumn("Nota Fiscal", options=["Sim", "Não"])
-    }
-    
-    # Definir a ordem das colunas
-    column_order = ["DataRecebimento", "Descrição", "Categoria", "ValorTotal", "FormaPagamento", "Projeto", "NF"]
-    
-    # Criar formulário para a tabela editável
-    with st.form("receitas_form"):
-        # Exibe a tabela editável com configuração personalizada
-        edited_df = st.data_editor(
-            df_receitas,
-            use_container_width=True,
-            hide_index=True,
-            num_rows="dynamic",
-            key="receitas_editor",
-            column_config=column_config,
-            column_order=column_order,
-            height=400
-        )
-        
-        # Botão para salvar alterações
-        if st.form_submit_button("Salvar Alterações", use_container_width=True):
-            with st.spinner("Salvando dados..."):
-                try:
-                    # Atualizar os dados no Google Sheets
-                    if salvar_dados_sheets(edited_df, "Receitas"):
-                        # Limpar o cache para forçar recarregar os dados
-                        salvar_dados(edited_df, "receitas")
-                        st.success("Dados salvos com sucesso!")
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"Erro ao salvar dados: {str(e)}")
+                    nova_receita = {
+                        "DataRecebimento": data_recebimento.strftime("%d/%m/%Y"),
+                        "Descrição": descricao,
+                        "Categoria": categoria,
+                        "ValorTotal": str(valor),
+                        "FormaPagamento": forma_pagamento,
+                        "Projeto": projeto,
+                        "NF": "Não"
+                    }
+                    if adicionar_linha_sheets(nova_receita, "Receitas"):
+                        st.success("Receita registrada com sucesso!")
+                        st.session_state.local_data["receitas"] = pd.DataFrame()
+                    else:
+                        st.error("Erro ao registrar receita.")
+    with tabs[1]:
+        st.markdown("### Receitas Cadastradas")
+        column_config = {
+            "DataRecebimento": st.column_config.TextColumn("Data de Recebimento"),
+            "Descrição": st.column_config.TextColumn("Descrição"),
+            "Categoria": st.column_config.SelectboxColumn("Categoria", options=df_categorias_receitas["Categoria"].tolist() if not df_categorias_receitas.empty else []),
+            "ValorTotal": st.column_config.NumberColumn("Valor Total", min_value=0.0, step=0.01, format="%.2f"),
+            "FormaPagamento": st.column_config.SelectboxColumn("Forma de Pagamento", options=["Pix", "Transferência", "Dinheiro", "Cheque", "Cartão de Crédito", "Outros"]),
+            "Projeto": st.column_config.SelectboxColumn("Projeto", options=[""] + list(df_projetos["Projeto"]) if not df_projetos.empty and "Projeto" in df_projetos.columns else [""]),
+            "NF": st.column_config.SelectboxColumn("Nota Fiscal", options=["Sim", "Não"])
+        }
+        column_order = ["DataRecebimento", "Descrição", "Categoria", "ValorTotal", "FormaPagamento", "Projeto", "NF"]
+        with st.form("receitas_form"):
+            edited_df = st.data_editor(
+                df_receitas,
+                use_container_width=True,
+                hide_index=True,
+                num_rows="dynamic",
+                key="receitas_editor",
+                column_config=column_config,
+                column_order=column_order,
+                height=400
+            )
+            if st.form_submit_button("Salvar Alterações", use_container_width=True):
+                with st.spinner("Salvando dados..."):
+                    try:
+                        if salvar_dados_sheets(edited_df, "Receitas"):
+                            salvar_dados(edited_df, "receitas")
+                            st.success("Dados salvos com sucesso!")
+                            st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao salvar dados: {str(e)}")
 
 def registrar_despesa():
     """

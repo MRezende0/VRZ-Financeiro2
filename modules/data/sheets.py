@@ -193,22 +193,20 @@ def salvar_dados_sheets(df, sheet_name):
                 # Adiciona um pequeno atraso para evitar problemas de rate limit
                 time.sleep(uniform(0.5, 1.0))
                 
-                # Atualiza apenas as células necessárias em vez de limpar tudo
-                # Primeiro, atualiza o intervalo existente
-                if len(all_values) > 1:  # Se temos dados para atualizar
+                # Sempre sobrescreve toda a planilha para garantir exclusão correta
+                try:
+                    worksheet.clear()
+                    worksheet.update(all_values)
+                except Exception as e:
+                    st.error(f"Erro ao atualizar dados: {e}. Tentando restaurar backup.")
+                    # Tenta restaurar o backup em caso de falha
                     try:
-                        # Atualiza o intervalo existente (preserva formatação e fórmulas)
-                        worksheet.update(all_values)
-                    except Exception as e:
-                        st.error(f"Erro ao atualizar dados: {e}. Tentando restaurar backup.")
-                        # Tenta restaurar o backup em caso de falha
-                        try:
-                            worksheet.clear()
-                            worksheet.update(backup_data)
-                            st.warning("Dados restaurados do backup após falha na atualização.")
-                        except:
-                            st.error("Não foi possível restaurar o backup. Contate o administrador.")
-                        return False
+                        worksheet.clear()
+                        worksheet.update(backup_data)
+                        st.warning("Dados restaurados do backup após falha na atualização.")
+                    except:
+                        st.error("Não foi possível restaurar o backup. Contate o administrador.")
+                    return False
             else:
                 # Se os cabeçalhos forem diferentes, tenta preservar os dados
                 st.warning(f"Os cabeçalhos da planilha '{sheet_name}' foram alterados. Tentando preservar os dados.")

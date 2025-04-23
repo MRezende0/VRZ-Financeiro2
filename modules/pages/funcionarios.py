@@ -16,105 +16,101 @@ def registrar_funcionario():
         
         # Verificar se o DataFrame está vazio ou não existe
         if df_funcionarios.empty:
-            df_funcionarios = pd.DataFrame(columns=["Nome", "CPF", "Cargo", "Contato", "Endereço"])
+            df_funcionarios = pd.DataFrame(columns=["Nome", "CPF", "Cargo", "Admissão", "Demissão", "Salário Fixo", "m2", "Contato", "Endereço"])
         
         # Converter todas as colunas para string para evitar problemas de tipo
         for col in df_funcionarios.columns:
             df_funcionarios[col] = df_funcionarios[col].astype(str)
         
-        # Formulário para adicionar novo funcionário
-        with st.form("novo_funcionario"):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                nome = st.text_input("Nome")
-                cpf = st.text_input("CPF")
-                cargo = st.selectbox("Cargo", ["Engenheiro", "Arquiteto", "Projetista", "Administrativo", "Outros"])
-            
-            with col2:
-                contato = st.text_input("Contato")
-                endereco = st.text_input("Endereço")
-            
-            submit_funcionario = st.form_submit_button("Registrar Funcionário")
-            
-            if submit_funcionario:
-                # Validar campos obrigatórios
-                campos_invalidos = []
-                
-                # Nome é obrigatório
-                if not nome:
-                    campos_invalidos.append("Nome")
-                
-                # Contato é obrigatório
-                if not contato:
-                    campos_invalidos.append("Contato")
-                
-                if campos_invalidos:
-                    st.error(f"Os seguintes campos são obrigatórios: {', '.join(campos_invalidos)}")
-                else:
-                    # Criar dicionário com os dados do novo funcionário
-                    novo_funcionario = {
-                        "Nome": nome,
-                        "CPF": str(cpf),  # Garantir que CPF seja string
-                        "Cargo": cargo,
-                        "Contato": contato,
-                        "Endereço": endereco
-                    }
-                    
-                    # Adicionar o novo funcionário diretamente à planilha
-                    if adicionar_linha_sheets(novo_funcionario, "Funcionarios"):
-                        st.success("Funcionário registrado com sucesso!")
-                        # Limpar o cache para forçar recarregar os dados
-                        st.session_state.local_data["funcionarios"] = pd.DataFrame()
-                        
-                        # Recarregar os dados para exibir o novo funcionário na tabela
-                        df_funcionarios = carregar_dados_sob_demanda("Funcionarios", force_reload=True)
+        # Abas para registrar e visualizar funcionários
+        tabs = st.tabs(["Registrar Funcionário", "Funcionários Cadastrados"])
+        # Flag para controlar se houve novo registro
+        novo_funcionario_adicionado = False
+        with tabs[0]:
+            st.markdown("### Novo Funcionário")
+            with st.form("novo_funcionario"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    nome = st.text_input("Nome")
+                    cpf = st.text_input("CPF")
+                    cargo = st.text_input("Cargo")
+                    admissao = st.date_input("Admissão")
+                    demissao = st.date_input("Demissão", value=None)
+                with col2:
+                    salario_fixo = st.number_input("Salário Fixo", min_value=0.0, step=1.00, format="%.2f")
+                    m2 = st.number_input("m2", min_value=0.0, step=1.00, format="%.2f")
+                    contato = st.text_input("Contato")
+                    endereco = st.text_input("Endereço")
+                submit_funcionario = st.form_submit_button("Registrar Funcionário")
+                if submit_funcionario:
+                    campos_invalidos = []
+                    if not nome:
+                        campos_invalidos.append("Nome")
+                    if not cargo:
+                        campos_invalidos.append("Cargo")
+                    if not admissao:
+                        campos_invalidos.append("Admissão")
+                    if not contato:
+                        campos_invalidos.append("Contato")
+                    if campos_invalidos:
+                        st.error(f"Os seguintes campos são obrigatórios: {', '.join(campos_invalidos)}")
                     else:
-                        st.error("Erro ao registrar funcionário.")
-        
-        # Exibir lista de funcionários
-        st.write("### Lista de Funcionários")
-        
-        # Configuração das colunas para a tabela de funcionários
-        column_config = {
-            "Nome": st.column_config.TextColumn("Nome"),
-            "CPF": st.column_config.TextColumn("CPF"),
-            "Cargo": st.column_config.SelectboxColumn("Cargo", options=["Engenheiro", "Arquiteto", "Projetista", "Administrativo", "Outros"]),
-            "Contato": st.column_config.TextColumn("Contato"),
-            "Endereço": st.column_config.TextColumn("Endereço")
-        }
-        
-        # Definir a ordem das colunas
-        column_order = ["Nome", "CPF", "Cargo", "Contato", "Endereço"]
-        
-        # Criar formulário para a tabela editável
-        with st.form("funcionarios_form"):
-            # Exibe a tabela editável com configuração personalizada
-            edited_df = st.data_editor(
-                df_funcionarios,
-                use_container_width=True,
-                hide_index=True,
-                num_rows="dynamic",
-                key="funcionarios_editor",
-                column_config=column_config,
-                column_order=column_order,
-                height=400
-            )
-            
-            # Botão para salvar alterações
-            if st.form_submit_button("Salvar Alterações", use_container_width=True):
-                with st.spinner("Salvando dados..."):
-                    try:
-                        # Atualizar os dados no Google Sheets
-                        if salvar_dados_sheets(edited_df, "Funcionarios"):
-                            # Limpar o cache para forçar recarregar os dados
+                        novo_funcionario = {
+                            "Nome": nome,
+                            "CPF": str(cpf),
+                            "Cargo": cargo,
+                            "Admissão": admissao.strftime("%d/%m/%Y") if admissao else "",
+                            "Demissão": demissao.strftime("%d/%m/%Y") if demissao else "",
+                            "Salário Fixo": str(salario_fixo),
+                            "m2": str(m2),
+                            "Contato": contato,
+                            "Endereço": endereco
+                        }
+                        if adicionar_linha_sheets(novo_funcionario, "Funcionarios"):
+                            st.success("Funcionário registrado com sucesso!")
                             st.session_state.local_data["funcionarios"] = pd.DataFrame()
-                            st.success("Dados salvos com sucesso!")
-                            st.rerun()
+                            novo_funcionario_adicionado = True
                         else:
-                            st.error("Erro ao salvar dados no Google Sheets.")
-                    except Exception as e:
-                        st.error(f"Erro ao salvar dados: {str(e)}")
+                            st.error("Erro ao registrar funcionário.")
+        with tabs[1]:
+            st.markdown("### Funcionários Cadastrados")
+            # Se acabou de adicionar, recarrega para refletir
+            if 'novo_funcionario_adicionado' in locals() and novo_funcionario_adicionado:
+                df_funcionarios = carregar_dados_sob_demanda("Funcionarios", force_reload=True)
+            column_config = {
+                "Nome": st.column_config.TextColumn("Nome"),
+                "CPF": st.column_config.TextColumn("CPF"),
+                "Cargo": st.column_config.TextColumn("Cargo"),
+                "Admissão": st.column_config.TextColumn("Admissão"),
+                "Demissão": st.column_config.TextColumn("Demissão"),
+                "Salário Fixo": st.column_config.NumberColumn("Salário Fixo", min_value=0.0, step=1.00, format="%.2f"),
+                "m2": st.column_config.NumberColumn("m2", min_value=0.0, step=1.00, format="%.2f"),
+                "Contato": st.column_config.TextColumn("Contato"),
+                "Endereço": st.column_config.TextColumn("Endereço")
+            }
+            column_order = ["Nome", "CPF", "Cargo", "Admissão", "Demissão", "Salário Fixo", "m2", "Contato", "Endereço"]
+            with st.form("funcionarios_form"):
+                edited_df = st.data_editor(
+                    df_funcionarios,
+                    use_container_width=True,
+                    hide_index=True,
+                    num_rows="dynamic",
+                    key="funcionarios_editor",
+                    column_config=column_config,
+                    column_order=column_order,
+                    height=400
+                )
+                if st.form_submit_button("Salvar Alterações", use_container_width=True):
+                    with st.spinner("Salvando dados..."):
+                        try:
+                            if salvar_dados_sheets(edited_df, "Funcionarios"):
+                                st.session_state.local_data["funcionarios"] = pd.DataFrame()
+                                st.success("Dados salvos com sucesso!")
+                                st.rerun()
+                            else:
+                                st.error("Erro ao salvar dados no Google Sheets.")
+                        except Exception as e:
+                            st.error(f"Erro ao salvar dados: {str(e)}")
     
     except Exception as e:
         st.error(f"Erro ao carregar dados dos funcionários: {e}")
